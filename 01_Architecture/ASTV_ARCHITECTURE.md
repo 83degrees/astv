@@ -4,7 +4,7 @@
 
 This document records the verified semantic architecture of ASTV: its active components, phase ownership, calls, returned values, data dependencies, gateways, and external actions.
 
-`ASTV_Architecture.drawio` is the authoritative visual structure and phase layout. The live Home Assistant YAML/configuration is authoritative for entity IDs, inputs, response variables, service calls, and dependencies. Legacy or unused scripts are not part of the current architecture merely because they remain in YAML.
+`ASTV_ARCHITECTURE.drawio` is the authoritative visual structure and phase layout. The live Home Assistant YAML/configuration is authoritative for entity IDs, inputs, response variables, service calls, and dependencies. Legacy or unused scripts are not part of the current architecture merely because they remain in YAML.
 
 ## Architecture Status and Timeframes
 
@@ -13,7 +13,7 @@ The normalized MediaCat media flow became current after `ASTV-65` proof at
 `2026-08-24T20:09:37.490Z` and was reverified through read-only live Home
 Assistant configuration inspection on 2026-08-25.
 
-The active `ASTV_Architecture.drawio` file is the verified post-cutover
+The active `ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
 current-production visual updated under `ASTV-78`, with SHA-256
 `0EB46AA7BD4F8F795EC05DC4A433C2EAA3E0AA376BE7B32BE5BE06ED2584704D`.
 Its static and structural validation is complete; final user review at normal

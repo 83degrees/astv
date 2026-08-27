@@ -1,0 +1,51 @@
+# ============================================================================
+# ASTV Protected Scripts
+#
+# These scripts are stored as a package because they contain !include
+# statements. They must not be recreated in the Home Assistant Script UI,
+# otherwise the UI will overwrite the includes.
+# ============================================================================
+
+script:
+  astv_find_uid_record:
+    alias: 'ASTV - Fn: Find UID Record'
+    description: Returns the master-file record matching a scanned UID
+    mode: parallel
+    max: 10
+    fields:
+      uid:
+        name: UID
+        description: Scanned NFC UID
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        masterfile: !include ../../assistive/astv_tags2.yaml
+        lookup_uid: '{{ uid | string | trim | upper }}'
+    - variables:
+        response: '{{ masterfile.get(lookup_uid, {}) }}'
+    - stop: UID lookup complete
+      response_variable: response
+  astv_find_area_domain_endpoints:
+    alias: 'ASTV - Fn: Find Area Domain Endpoints'
+    description: Returns the endpoints for the provided domain within the provided area
+    mode: parallel
+    max: 10
+    fields:
+      domain:
+        selector:
+          text: null
+        name: Domain
+        required: true
+      area:
+        selector:
+          area:
+        name: Area
+    sequence:
+    - variables:
+        endpoints: !include ../../assistive/astv_area_endpoints2.yaml
+    - variables:
+        area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
+    - stop: Area playback domain endpoints found
+      response_variable: area_domain_response

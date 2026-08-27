@@ -1,0 +1,78 @@
+{
+  "script_id": "astv_intent_engine_media",
+  "config_hash": "b36661a38e022b4b",
+  "category": "01K9QMV1C04YWV4HAS8G6V7FRV",
+  "config": {
+    "alias": "ASTV - Intent Engine: Media",
+    "description": "Resolves Media execution details and returns the shared Phase 2 interface without executing it.",
+    "fields": {
+      "request": {
+        "selector": {
+          "object": {}
+        },
+        "name": "Request",
+        "required": true,
+        "description": "The UID object found for the scanned UID."
+      },
+      "target_area": {
+        "selector": {
+          "text": {}
+        },
+        "name": "Target Area",
+        "required": true,
+        "description": "The area resolved for this ASTV request."
+      }
+    },
+    "sequence": [
+      {
+        "action": "script.astv_find_area_domain_endpoints",
+        "metadata": {},
+        "data": {
+          "domain": "{{ request.params.output.domain }}",
+          "area": "{{ target_area }}"
+        },
+        "response_variable": "area_domain_response"
+      },
+      {
+        "action": "script.astv_resolve_playback_method",
+        "metadata": {},
+        "data": {
+          "preferences": "{{ area_domain_response.preference }}",
+          "available_sources": "{{ request.params.sources }}"
+        },
+        "response_variable": "playback_method_response"
+      },
+      {
+        "action": "script.astv_select_area_playback_endpoint",
+        "metadata": {},
+        "data": {
+          "area_playback_domain": "{{ area_domain_response }}",
+          "playback_method": "{{ playback_method_response.selected_source }}"
+        },
+        "response_variable": "area_playback_endpoint_response"
+      },
+      {
+        "variables": {
+          "execution_method": "{{ area_playback_endpoint_response.keys() | first | default('', true) }}",
+          "selected_endpoint": "{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys() | first, {}) }}"
+        }
+      },
+      {
+        "variables": {
+          "media_intent_response": {
+            "request": "{{ request }}",
+            "target_area": "{{ target_area }}",
+            "execution_method": "{{ execution_method }}",
+            "selected_endpoint": "{{ selected_endpoint }}"
+          }
+        }
+      },
+      {
+        "stop": "Media intent prepared",
+        "response_variable": "media_intent_response"
+      }
+    ],
+    "mode": "parallel",
+    "max": 10
+  }
+}

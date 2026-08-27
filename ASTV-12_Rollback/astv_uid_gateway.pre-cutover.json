@@ -1,0 +1,75 @@
+{
+  "script_id": "astv_uid_gateway",
+  "category": "01K9QMV1C04YWV4HAS8G6V7FRV",
+  "config_hash": "bef76d1a1a449709",
+  "config": {
+    "alias": "ASTV - UID Gateway",
+    "description": "",
+    "fields": {
+      "uid": {
+        "selector": { "text": null },
+        "name": "UID",
+        "required": true,
+        "description": "Received UID"
+      },
+      "trigger_entity": {
+        "selector": { "entity": {} },
+        "default": "sensor.pi_nfc_99_last_uid",
+        "name": "Trigger Entity"
+      }
+    },
+    "sequence": [
+      {
+        "action": "script.astv_find_uid_record",
+        "data": { "uid": "{{ uid }}" },
+        "response_variable": "request"
+      },
+      {
+        "if": [
+          {
+            "condition": "template",
+            "value_template": "{{ request | count == 0 }}"
+          }
+        ],
+        "then": [
+          {
+            "action": "persistent_notification.create",
+            "data": {
+              "title": "No UID Record Found",
+              "message": "No record found for UID:\n{{ uid }}\n"
+            }
+          },
+          { "stop": "No UID record found", "error": false }
+        ],
+        "else": [
+          {
+            "action": "persistent_notification.create",
+            "data": {
+              "title": "UID Record Found",
+              "message": "UID: {{ uid }}\nTrigger Entity: {{ trigger_entity  }}\n\nTitle: {{ request.title }}\nIntent: {{ request.intent }}\n\nParams: {{ request.params }}"
+            }
+          },
+          {
+            "action": "script.astv_resolve_area",
+            "data": {
+              "trigger_entity": "{{ trigger_entity }}",
+              "trigger_area_override": "{{ request.area_override | default('', true) }}"
+            },
+            "response_variable": "area_response"
+          },
+          { "variables": { "target_area": "{{ area_response.target_area }}" } },
+          {
+            "action": "script.astv_select_intent_engine",
+            "metadata": {},
+            "data": {
+              "request": "{{ request }}",
+              "target_area": "{{ target_area }}"
+            }
+          }
+        ]
+      }
+    ],
+    "mode": "parallel",
+    "max": 10
+  }
+}

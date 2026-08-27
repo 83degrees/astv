@@ -1,0 +1,209 @@
+{
+  "script_id": "astv_select_execution_engine",
+  "config_hash": "338ddf0d9a75efc8",
+  "category": "01K9QMV1C04YWV4HAS8G6V7FRV",
+  "config": {
+    "alias": "ASTV - Select Execution Engine",
+    "description": "Dispatches an ASTV execution request to the selected implemented execution engine.",
+    "mode": "parallel",
+    "max": 10,
+    "fields": {
+      "execution_method": {
+        "name": "Execution Method",
+        "description": "The resolved execution method.",
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "request": {
+        "name": "Request",
+        "description": "The complete ASTV request object.",
+        "required": true,
+        "selector": {
+          "object": {}
+        }
+      },
+      "target_area": {
+        "name": "Target Area",
+        "description": "The resolved ASTV target area retained as pipeline context.",
+        "required": true,
+        "selector": {
+          "text": {}
+        }
+      },
+      "selected_endpoint": {
+        "name": "Selected Endpoint",
+        "description": "The endpoint selected for the execution method.",
+        "required": true,
+        "selector": {
+          "object": {}
+        }
+      }
+    },
+    "sequence": [
+      {
+        "variables": {
+          "resolved_execution_method": "{{ execution_method | default('', true) | string | trim }}",
+          "resolved_selected_endpoint": "{{ selected_endpoint | default({}, true) }}",
+          "resolved_target_area": "{{ target_area | default('', true) | string | trim }}"
+        }
+      },
+      {
+        "choose": [
+          {
+            "alias": "HA Media Player",
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ resolved_execution_method == 'ha_mplayer' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ resolved_selected_endpoint.media_entity | default('', true) | string | trim == '' }}"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "persistent_notification.create",
+                    "data": {
+                      "title": "ASTV - Select Execution Engine",
+                      "message": "No valid HA Media Player endpoint was supplied for execution method 'ha_mplayer' in area '{{ target_area }}'."
+                    }
+                  },
+                  {
+                    "stop": "No valid HA Media Player endpoint supplied",
+                    "error": true
+                  }
+                ]
+              },
+              {
+                "action": "script.astv_ha_mplayer_engine",
+                "data": {
+                  "request": "{{ request }}",
+                  "selected_endpoint": "{{ resolved_selected_endpoint }}"
+                }
+              }
+            ]
+          },
+          {
+            "alias": "Google Home Device",
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ resolved_execution_method == 'g_home_device' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ resolved_selected_endpoint.phrase | default('', true) | string | trim == '' }}"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "persistent_notification.create",
+                    "data": {
+                      "title": "ASTV - Select Execution Engine",
+                      "message": "No valid Google Home Device endpoint was supplied for execution method 'g_home_device' in area '{{ target_area }}'."
+                    }
+                  },
+                  {
+                    "stop": "No valid Google Home Device endpoint supplied",
+                    "error": true
+                  }
+                ]
+              },
+              {
+                "action": "script.astv_g_home_device_engine",
+                "data": {
+                  "request": "{{ request }}",
+                  "selected_endpoint": "{{ resolved_selected_endpoint }}"
+                }
+              }
+            ]
+          },
+          {
+            "alias": "Google Automation",
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ resolved_execution_method == 'g_automation' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ request.routine | default('', true) | string | trim == '' }}"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "persistent_notification.create",
+                    "data": {
+                      "title": "ASTV - Select Execution Engine",
+                      "message": "No valid routine was supplied for execution method 'g_automation' in area '{{ target_area }}'."
+                    }
+                  },
+                  {
+                    "stop": "No valid routine supplied",
+                    "error": true
+                  }
+                ]
+              },
+              {
+                "if": [
+                  {
+                    "condition": "template",
+                    "value_template": "{{ resolved_target_area == '' }}"
+                  }
+                ],
+                "then": [
+                  {
+                    "action": "persistent_notification.create",
+                    "data": {
+                      "title": "ASTV - Select Execution Engine",
+                      "message": "No valid target area was supplied for execution method 'g_automation' and routine '{{ request.routine }}'."
+                    }
+                  },
+                  {
+                    "stop": "No valid target area supplied",
+                    "error": true
+                  }
+                ]
+              },
+              {
+                "action": "script.astv_g_automation_engine",
+                "data": {
+                  "request": "{{ request }}",
+                  "target_area": "{{ target_area }}"
+                }
+              }
+            ]
+          }
+        ],
+        "default": [
+          {
+            "action": "persistent_notification.create",
+            "data": {
+              "title": "ASTV - Select Execution Engine",
+              "message": "Unsupported or blank execution method '{{ resolved_execution_method }}' for area '{{ target_area }}'."
+            }
+          },
+          {
+            "stop": "Unsupported or blank execution method",
+            "error": true
+          }
+        ]
+      }
+    ]
+  }
+}

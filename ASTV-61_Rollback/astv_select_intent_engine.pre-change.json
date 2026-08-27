@@ -1,0 +1,105 @@
+{
+  "script_id": "astv_select_intent_engine",
+  "config_hash": "e9759f8b814b63df",
+  "category": "01K9QMV1C04YWV4HAS8G6V7FRV",
+  "config": {
+    "alias": "ASTV - Select Intent Engine",
+    "description": "Selects one Phase 2 intent engine, captures its shared response, then dispatches once through the global Phase 3 selector.",
+    "fields": {
+      "request": {
+        "selector": {
+          "object": {}
+        },
+        "name": "Request",
+        "required": true,
+        "description": "The UID object found for the scanned UID."
+      },
+      "target_area": {
+        "selector": {
+          "text": {}
+        },
+        "name": "Target Area",
+        "required": true,
+        "description": "The area resolved for this ASTV request."
+      }
+    },
+    "sequence": [
+      {
+        "variables": {
+          "intent": "{{ request.intent }}",
+          "intent_path": "{{ intent.split('.') }}"
+        }
+      },
+      {
+        "alias": "Choose Intent Engine based on intent_path",
+        "choose": [
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ intent_path[0] == 'media' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "action": "script.astv_intent_engine_media",
+                "metadata": {},
+                "data": {
+                  "request": "{{ request }}",
+                  "target_area": "{{ target_area }}"
+                },
+                "response_variable": "intent_response"
+              }
+            ],
+            "alias": "Media.*"
+          },
+          {
+            "conditions": [
+              {
+                "condition": "template",
+                "value_template": "{{ intent_path[0] == 'routine' }}"
+              }
+            ],
+            "sequence": [
+              {
+                "action": "script.astv_intent_engine_routine",
+                "metadata": {},
+                "data": {
+                  "request": "{{ request }}",
+                  "target_area": "{{ target_area }}"
+                },
+                "response_variable": "intent_response"
+              }
+            ],
+            "alias": "Routine.*"
+          }
+        ],
+        "default": [
+          {
+            "action": "notify.persistent_notification",
+            "metadata": {},
+            "data": {
+              "message": "No intent recognised for:\n\nTitle: {{ request.title }}\nIntent: {{ intent }}\nIntent Path: {{ intent_path }}",
+              "title": "Intent not recognised"
+            }
+          },
+          {
+            "stop": "Intent not recognised",
+            "error": true
+          }
+        ]
+      },
+      {
+        "action": "script.astv_select_execution_engine",
+        "data": {
+          "execution_method": "{{ intent_response.execution_method }}",
+          "request": "{{ intent_response.request }}",
+          "target_area": "{{ intent_response.target_area }}",
+          "selected_endpoint": "{{ intent_response.selected_endpoint }}"
+        }
+      }
+    ],
+    "mode": "parallel",
+    "max": 10
+  }
+}

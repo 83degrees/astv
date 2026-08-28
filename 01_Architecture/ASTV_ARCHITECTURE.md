@@ -16,8 +16,8 @@ Assistant configuration inspection on 2026-08-25.
 The active `ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
 current-production visual updated under `ASTV-78`, with SHA-256
 `0EB46AA7BD4F8F795EC05DC4A433C2EAA3E0AA376BE7B32BE5BE06ED2584704D`.
-Its static and structural validation is complete; final user review at normal
-and overview zoom remains required before issue acceptance. The exact original
+Its static and structural validation and final user review at normal and
+overview zoom were completed and accepted under `ASTV-78`. The exact original
 pre-change visual remains archived as
 `Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
 
@@ -586,9 +586,8 @@ request passed after retirement without calling the standalone gateway.
 UID requests each performed exactly one lookup and one method selection before
 one terminal action; all produced clean traces and logs and audible user
 confirmation. The ASTV-65 operational rollback window is closed; its retained
-artifacts are historical evidence. The active Draw.io bytes contain an
-unaccepted post-cutover candidate from the earlier ASTV-78 attempt; final visual
-review and acceptance remain separately governed by ASTV-78.
+artifacts are historical evidence. The active Draw.io bytes are the accepted
+current-production visual completed and reviewed under `ASTV-78`.
 
 ## Gateway Semantics
 

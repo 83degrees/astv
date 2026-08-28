@@ -15,7 +15,7 @@ Assistant configuration inspection on 2026-08-25.
 
 The active `ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
 current-production visual updated under `ASTV-78`, with SHA-256
-`0EB46AA7BD4F8F795EC05DC4A433C2EAA3E0AA376BE7B32BE5BE06ED2584704D`.
+`AF97914C1EBB7187F7DA1966E94C9165F57148735FC57D06A4BD36384004315E`.
 Its static and structural validation and final user review at normal and
 overview zoom were completed and accepted under `ASTV-78`. The exact original
 pre-change visual remains archived as

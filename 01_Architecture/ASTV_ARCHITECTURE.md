@@ -4,7 +4,11 @@
 
 This document records the verified semantic architecture of ASTV: its active components, phase ownership, calls, returned values, data dependencies, gateways, and external actions.
 
-`ASTV_ARCHITECTURE.drawio` is the authoritative visual structure and phase layout. The live Home Assistant YAML/configuration is authoritative for entity IDs, inputs, response variables, service calls, and dependencies. Legacy or unused scripts are not part of the current architecture merely because they remain in YAML.
+The governed diagram at `Diagrams/ASTV_ARCHITECTURE.drawio` represents this
+semantic architecture and preserves its visual structure and phase layout. The
+live Home Assistant YAML/configuration is authoritative for entity IDs, inputs,
+response variables, service calls, and dependencies. Legacy or unused scripts
+are not part of the current architecture merely because they remain in YAML.
 
 ## Architecture Status and Timeframes
 
@@ -13,13 +17,13 @@ The normalized MediaCat media flow became current after `ASTV-65` proof at
 `2026-08-24T20:09:37.490Z` and was reverified through read-only live Home
 Assistant configuration inspection on 2026-08-25.
 
-The active `ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
+The active `Diagrams/ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
 current-production visual updated under `ASTV-78`, with SHA-256
 `AF97914C1EBB7187F7DA1966E94C9165F57148735FC57D06A4BD36384004315E`.
 Its static and structural validation and final user review at normal and
 overview zoom were completed and accepted under `ASTV-78`. The exact original
-pre-change visual remains archived as
-`Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
+pre-change visual remains recoverable from Git history at the T1 baseline path
+`01_Architecture/Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
 
 The normalized flow is defined by the shared contracts. `ASTV-60` installed the
 compatibility-safe MediaCat lookup and selection branch inside
@@ -504,11 +508,13 @@ The Google Automation Engine does not call the Google Home automation directly.
 
 The current normalized architecture is governed by:
 
-- `../../contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` for the normalized MediaCat
-  lookup and returned record;
-- `../../contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` for ASTV's internal media
+- provider-owned `MEDIACAT_ITEM_LOOKUP_INTERFACE.md`, at the authoritative
+  location recorded in `PROJECT_PROFILE.md`, for the normalized MediaCat lookup
+  and returned record;
+- `../03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` for ASTV's internal media
   context and execution branches; and
-- `../../contracts/ASTV_ADVMEDIA_INTERFACE.md` for the ASTV-to-AdvMedia handoff.
+- provider-owned `ASTV_ADVMEDIA_INTERFACE.md`, at the authoritative location
+  recorded in `PROJECT_PROFILE.md`, for the ASTV-to-AdvMedia handoff.
 
 Those contracts remain the single sources for exact fields, record structure,
 presence promises, and failure behaviour. This narrative describes ASTV's
@@ -573,8 +579,8 @@ final command, or invoke the assistant SDK.
 ASTV-67 replaced the standalone compatibility shape with an AdvMedia-owned
 MediaCat gateway whose caller supplies the catalogue reference, already selected
 execution method, and media-player endpoint. The gateway resolves the record
-once and calls the shared core once. It is separately contracted in
-`../../contracts/ADVMEDIA_MEDIACAT_GATEWAY_INTERFACE.md`.
+once and calls the shared core once. It is separately contracted in the
+AdvMedia-owned `ADVMEDIA_MEDIACAT_GATEWAY_INTERFACE.md`.
 
 The retired `script.advmedia_find_media_record` wrapper is absent from current
 source and live Home Assistant after explicit user approval and post-removal
@@ -585,9 +591,10 @@ request passed after retirement without calling the standalone gateway.
 `ASTV-65` proved the full normalized flow current end to end. Seven sequential
 UID requests each performed exactly one lookup and one method selection before
 one terminal action; all produced clean traces and logs and audible user
-confirmation. The ASTV-65 operational rollback window is closed; its retained
-artifacts are historical evidence. The active Draw.io bytes are the accepted
-current-production visual completed and reviewed under `ASTV-78`.
+confirmation. The ASTV-65 operational rollback window is closed; its historical
+evidence remains available through Linear and Git history. The active Draw.io
+bytes are the accepted current-production visual completed and reviewed under
+`ASTV-78`.
 
 ## Gateway Semantics
 

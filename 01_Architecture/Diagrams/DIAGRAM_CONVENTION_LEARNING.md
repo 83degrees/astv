@@ -17,12 +17,13 @@ Standard.
 - A grey hexagon represents an external subsystem.
 - ASTV script and function boxes show both the friendly name and technical
   entity ID.
-- Decision diamonds use the established compact 50 by 50 baseline.
+- Decision diamonds use the established compact 50×50 baseline and must not be
+  enlarged without explicit approval.
 - Cross-functional phase bands and manually corrected layout are preserved.
-- Phase 3 execution branches may occupy separate local regions and are not
+- Phase 3 execution branches may occupy separate local regions and must not be
   forced into equal vertical lanes.
-- The AdvMedia adapter and external AdvMedia subsystem may be shown, but
-  AdvMedia's internal function chain is not expanded in the ASTV diagram.
+- The ASTV diagram may show the AdvMedia adapter and external subsystem, but
+  never AdvMedia's internal function chain.
 - Established branch-outcome labels include `Media`, `Routine`,
   `HA Media Player`, `Google Home Device`, `AdvMedia`, and `Radio Browser`.
 

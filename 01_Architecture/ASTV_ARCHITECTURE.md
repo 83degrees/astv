@@ -5,10 +5,12 @@
 This document records the verified semantic architecture of ASTV: its active components, phase ownership, calls, returned values, data dependencies, gateways, and external actions.
 
 The governed diagram at `Diagrams/ASTV_ARCHITECTURE.drawio` represents this
-semantic architecture and preserves its visual structure and phase layout. The
-live Home Assistant YAML/configuration is authoritative for entity IDs, inputs,
-response variables, service calls, and dependencies. Legacy or unused scripts
-are not part of the current architecture merely because they remain in YAML.
+semantic architecture and preserves its visual structure and phase layout. This
+document is authoritative for semantic architecture and dependencies. Verified
+live Home Assistant YAML/configuration establishes deployed/runtime facts only,
+including current entity IDs, inputs, response variables, and service calls.
+Legacy or unused scripts are not part of the current architecture merely because
+they remain in YAML.
 
 ## Architecture Status and Timeframes
 

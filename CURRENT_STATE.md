@@ -1,4 +1,12 @@
-# ASTV Current State
+# ASTV Current State — Historical Governance 1.2 Restart Index
+
+> Historical: retained because open cross-product architecture work (`ASTV-81`)
+> explicitly requires the product current-state records. This file is not a
+> current Governance 2.0 authority. Use `PROJECT_PROFILE.md`,
+> `01_Architecture/ASTV_ARCHITECTURE.md`, provider-owned contracts, verified
+> production evidence, Linear, and Git for their governed subjects.
+> Paths and statements below describe the T1 baseline; artefacts retired by
+> `ASTV-100` remain recoverable from Git history.
 
 ## Metadata
 

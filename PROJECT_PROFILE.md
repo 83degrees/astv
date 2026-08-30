@@ -3,11 +3,11 @@
 ## Profile conformance
 
 This profile contains the required Governance 2.0 product-profile subjects and
-does not activate Governance 2.0 before coordinated cutover.
+is current under the operational Governance 2.0 authority.
 
 ## Document status
 
-- Governance state: approved target
+- Governance state: current approved
 - Exact migration baseline: `aa62fb8edac8b5ad0d184c19b96e7124367dc7cb`
 
 ## Product identity
@@ -82,10 +82,10 @@ governed representation.
 | `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | current registry v1.0.0 | MediaCat | `MediaCat/03_Contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized lookup and complete returned record used before ASTV selects a method and endpoint. |
 | `ASTV_ADVMEDIA_INTERFACE.md` | current v2.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | Playback context passed through the ASTV adapter; AdvMedia's contracted result is consumed before ASTV's final playback action. |
 
-During transition, Governance 1.2 remains operational and its shared contract
-copies under `Home_Assistant/contracts/` remain migration evidence until the
-coordinated cutover and retirement work. They are not duplicated in this
-repository.
+The provider-owned locations above are the sole operational contract
+authorities. Former shared Governance 1.2 copies under
+`Home_Assistant/contracts/` are retired and non-authoritative; any temporarily
+retained recovery copy must not be used for current work.
 
 ## Product dependencies
 

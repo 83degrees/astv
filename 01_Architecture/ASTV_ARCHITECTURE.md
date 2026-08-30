@@ -27,7 +27,8 @@ overview zoom were completed and accepted under `ASTV-78`. The exact original
 pre-change visual remains recoverable from Git history at the T1 baseline path
 `01_Architecture/Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
 
-The normalized flow is defined by the shared contracts. `ASTV-60` installed the
+The normalized flow is defined by the applicable provider-owned contracts
+recorded in `PROJECT_PROFILE.md`. `ASTV-60` installed the
 compatibility-safe MediaCat lookup and selection branch inside
 `script.astv_intent_engine_media`. `ASTV-61` installed the conditional
 five-field handoff through Select Intent Engine and Select Execution Engine and

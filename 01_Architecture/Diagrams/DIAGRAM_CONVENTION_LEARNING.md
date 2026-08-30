@@ -3,9 +3,9 @@
 ## Status
 
 This file records ASTV-local visual conventions observed in the current
-governed diagram and the Governance 1.2 ASTV architecture overlay. It does not
-define architecture and does not amend the central Architecture Diagram
-Standard.
+governed diagram and the historical, non-authoritative Governance 1.2 ASTV
+architecture overlay. It does not define architecture and does not amend the
+central Architecture Diagram Standard.
 
 ## Established ASTV-local conventions
 

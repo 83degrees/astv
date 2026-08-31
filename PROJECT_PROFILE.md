@@ -136,8 +136,8 @@ reused product, platform, service, entity, or infrastructure names.
 - Known limitations: static snapshot hashes do not prove current live state;
   live per-item configuration search is partial for YAML-defined entities.
 
-Current deployable source deliberately remains at
+Current deployable source is maintained at
 `assistive/astv_intent_catalogue.yaml` and
-`ASTV-76_Source/astv_adapter_advmedia.json`. No complete current ASTV script
+`scripts/astv_adapter_advmedia.json`. No complete current ASTV script
 package is promoted from read-only production evidence or historical rollback
 payloads into this repository by this migration.

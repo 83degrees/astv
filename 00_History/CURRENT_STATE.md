@@ -69,7 +69,7 @@ action without calling the standalone gateway; audible playback was confirmed.
   `contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md`.
 - Cross-product contract: `contracts/ASTV_ADVMEDIA_INTERFACE.md`.
 - Read-only evidence root: `Production_ReadOnly/starburst/`.
-- Historical context: `ASTV/00_PreProject_History/CONTEXT_HANDOVER.md`.
+- Historical context: `ASTV/00_History/CONTEXT_HANDOVER.md`.
 
 Follow the precedence in `ASTV/AGENTS.md`. This document is a restart index; it
 does not replace current production evidence, contracts, architecture, the

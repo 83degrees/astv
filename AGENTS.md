@@ -4,9 +4,9 @@ Governance 2.0 is the operational governance authority for this repository.
 Governance 1.2 is retired as active authority; retained Governance 1.2 material
 is historical or dependency-bound only and must not govern current work.
 
-Before work, read and follow `CENTRAL_GOVERNANCE.md` and `PROJECT_PROFILE.md`,
+Before work, read and follow `00_Governance/CENTRAL_GOVERNANCE.md` and `PROJECT_PROFILE.md`,
 then the applicable subject authority. For architecture or diagram work, also
 read `01_Architecture/ASTV_ARCHITECTURE.md`,
-`Standards/ARCHITECTURE_DIAGRAM_STANDARD.md`, and
+`00_Governance/Standards/ARCHITECTURE_DIAGRAM_STANDARD.md`, and
 `01_Architecture/Diagrams/DIAGRAM_CONVENTION_LEARNING.md`. For contract work,
 read the applicable provider-owned contract.

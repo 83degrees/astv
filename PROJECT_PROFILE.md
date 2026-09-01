@@ -137,7 +137,7 @@ reused product, platform, service, entity, or infrastructure names.
   live per-item configuration search is partial for YAML-defined entities.
 
 Current deployable source deliberately remains at
-`assistive/astv_intent_catalogue.yaml` and
-`ASTV-76_Source/astv_adapter_advmedia.json`. No complete current ASTV script
+`04_Source/assistive/astv_intent_catalogue.yaml` and
+`04_Source/astv_adapter_advmedia.json`. No complete current ASTV script
 package is promoted from read-only production evidence or historical rollback
 payloads into this repository by this migration.

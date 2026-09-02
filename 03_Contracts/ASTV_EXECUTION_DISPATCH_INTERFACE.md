@@ -165,7 +165,7 @@ runtime fallback policy.
 
 MediaCat produces the complete normalized media record defined only in the
 provider-owned `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` recorded in
-`PROJECT_PROFILE.md`. The dispatcher contract references that record and does
+`00_Governance/PROJECT_PROFILE.md`. The dispatcher contract references that record and does
 not copy its schema.
 
 ### Current v2 boundary shape
@@ -227,7 +227,7 @@ The dispatcher passes `request`, `selected_endpoint`, `execution_method`, and
 
 The cross-product handoff and its failure behaviour are defined in the
 provider-owned `ASTV_ADVMEDIA_INTERFACE.md` recorded in
-`PROJECT_PROFILE.md`. AdvMedia returns the full contracted result mapping; the
+`00_Governance/PROJECT_PROFILE.md`. AdvMedia returns the full contracted result mapping; the
 ASTV adapter extracts `playback_payload`, and ASTV performs the final
 `media_player.play_media` call.
 

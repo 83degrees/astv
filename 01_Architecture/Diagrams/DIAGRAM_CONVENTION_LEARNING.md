@@ -28,4 +28,4 @@ central Architecture Diagram Standard.
   `HA Media Player`, `Google Home Device`, `AdvMedia`, and `Radio Browser`.
 
 Shared connector, variable-label, gateway, boundary, editing, and review rules
-remain defined only by `00_Governance/Standards/ARCHITECTURE_DIAGRAM_STANDARD.md`.
+remain defined only by `00_Governance/01_Central/01_Standards/ARCHITECTURE_DIAGRAM_STANDARD.md`.

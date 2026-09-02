@@ -28,7 +28,7 @@ pre-change visual remains recoverable from Git history at the T1 baseline path
 `01_Architecture/Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
 
 The normalized flow is defined by the applicable provider-owned contracts
-recorded in `PROJECT_PROFILE.md`. `ASTV-60` installed the
+recorded in `00_Governance/PROJECT_PROFILE.md`. `ASTV-60` installed the
 compatibility-safe MediaCat lookup and selection branch inside
 `script.astv_intent_engine_media`. `ASTV-61` installed the conditional
 five-field handoff through Select Intent Engine and Select Execution Engine and
@@ -512,12 +512,12 @@ The Google Automation Engine does not call the Google Home automation directly.
 The current normalized architecture is governed by:
 
 - provider-owned `MEDIACAT_ITEM_LOOKUP_INTERFACE.md`, at the authoritative
-  location recorded in `PROJECT_PROFILE.md`, for the normalized MediaCat lookup
+  location recorded in `00_Governance/PROJECT_PROFILE.md`, for the normalized MediaCat lookup
   and returned record;
 - `../03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` for ASTV's internal media
   context and execution branches; and
 - provider-owned `ASTV_ADVMEDIA_INTERFACE.md`, at the authoritative location
-  recorded in `PROJECT_PROFILE.md`, for the ASTV-to-AdvMedia handoff.
+  recorded in `00_Governance/PROJECT_PROFILE.md`, for the ASTV-to-AdvMedia handoff.
 
 Those contracts remain the single sources for exact fields, record structure,
 presence promises, and failure behaviour. This narrative describes ASTV's

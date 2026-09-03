@@ -14,6 +14,7 @@ is current under the operational Governance 2.0 authority.
 
 - Product name: ASTV
 - Repository: `83degrees/astv`
+- DDR origin code: `01`
 
 ## Purpose
 

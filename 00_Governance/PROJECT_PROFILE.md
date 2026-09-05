@@ -16,6 +16,10 @@ is current under the approved Central Governance authority.
 - Repository: `83degrees/astv`
 - DDR origin code: `01`
 
+## Linear work routing
+
+- Default Linear team: `ASTV`
+
 ## Purpose
 
 ASTV is the Home Assistant intent and orchestration product. It receives entry

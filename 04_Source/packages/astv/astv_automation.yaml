@@ -1,0 +1,24 @@
+automation:
+  - id: astv_tag_listener
+    alias: ASTV - Tag Listener
+    description: ''
+    triggers:
+    - entity_id:
+      - sensor.pi_nfc_02_last_uid
+      trigger: state
+    - entity_id:
+      - sensor.pi_nfc_99_last_uid
+      trigger: state
+    conditions:
+    - condition: template
+      value_template: '{{ trigger.to_state.state | upper not in [''UNKNOWN'',''UNAVAILABLE'','''',
+        none] }}
+
+        '
+    actions:
+    - data:
+        uid: '{{ trigger.to_state.state | upper }}'
+        trigger_entity: '{{ trigger.entity_id }}'
+      action: script.astv_uid_gateway
+    mode: parallel
+    max: 10

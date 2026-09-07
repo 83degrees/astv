@@ -1,0 +1,271 @@
+script:
+  astv_select_intent_engine:
+    alias: ASTV - Select Intent Engine
+    description: Selects one Phase 2 intent engine, captures its shared response, then
+      dispatches once through the global Phase 3 selector.
+    fields:
+      request:
+        selector:
+          object: {}
+        name: Request
+        required: true
+        description: The UID object found for the scanned UID.
+      target_area:
+        selector:
+          text: {}
+        name: Target Area
+        required: true
+        description: The area resolved for this ASTV request.
+    sequence:
+    - variables:
+        intent: '{{ request.intent }}'
+        intent_path: '{{ intent.split(''.'') }}'
+    - alias: Choose Intent Engine based on intent_path
+      choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ intent_path[0] == ''media'' }}'
+        sequence:
+        - action: script.astv_intent_engine_media
+          metadata: {}
+          data:
+            request: '{{ request }}'
+            target_area: '{{ target_area }}'
+          response_variable: intent_response
+        alias: Media.*
+      - conditions:
+        - condition: template
+          value_template: '{{ intent_path[0] == ''routine'' }}'
+        sequence:
+        - action: script.astv_intent_engine_routine
+          metadata: {}
+          data:
+            request: '{{ request }}'
+            target_area: '{{ target_area }}'
+          response_variable: intent_response
+        alias: Routine.*
+      default:
+      - action: notify.persistent_notification
+        metadata: {}
+        data:
+          message: 'No intent recognised for:
+
+
+            Title: {{ request.title }}
+
+            Intent: {{ intent }}
+
+            Intent Path: {{ intent_path }}'
+          title: Intent not recognised
+      - stop: Intent not recognised
+        error: true
+    - variables:
+        dispatcher_input: "{% set base = {\n  'request': intent_response.request,\n
+          \ 'target_area': intent_response.target_area,\n  'execution_method': intent_response.execution_method,\n
+          \ 'selected_endpoint': intent_response.selected_endpoint\n} %}\n{{ dict(base,
+          media_record=intent_response.media_record)\n   if intent_response.media_record
+          is defined\n   else base }}"
+    - action: script.astv_select_execution_engine
+      data: '{{ dispatcher_input }}'
+    mode: parallel
+    max: 10
+
+  astv_intent_engine_media:
+    alias: 'ASTV - Intent Engine: Media'
+    description: Resolves Media execution details through the legacy path or the installed
+      MediaCat compatibility path without executing it.
+    fields:
+      request:
+        selector:
+          object: {}
+        name: Request
+        required: true
+        description: The UID object found for the scanned UID.
+      target_area:
+        selector:
+          text: {}
+        name: Target Area
+        required: true
+        description: The area resolved for this ASTV request.
+    sequence:
+    - variables:
+        catalogue_id: '{{ request.params.catalogue_id | default('''', true) | string
+          | trim }}'
+        item_id: '{{ request.params.item_id | default('''', true) | string | trim }}'
+    - alias: Select Media reference path
+      choose:
+      - alias: Incomplete MediaCat reference
+        conditions:
+        - condition: template
+          value_template: '{{ (catalogue_id != '''') != (item_id != '''') }}'
+        sequence:
+        - action: persistent_notification.create
+          data:
+            title: Incomplete MediaCat Reference
+            message: 'Media intent ''{{ request.title | default(''(untitled)'', true)
+              }}'' supplied an incomplete MediaCat reference.
+
+
+              catalogue_id: {{ catalogue_id if catalogue_id != '''' else ''(blank)''
+              }}
+
+              item_id: {{ item_id if item_id != '''' else ''(blank)'' }}'
+        - stop: Incomplete MediaCat reference
+          error: true
+      - alias: Normalized MediaCat reference
+        conditions:
+        - condition: template
+          value_template: '{{ catalogue_id != '''' and item_id != '''' }}'
+        sequence:
+        - action: curated_media.resolve_media_record
+          data:
+            catalogue_id: '{{ catalogue_id }}'
+            item_id: '{{ item_id }}'
+          response_variable: media_record_response
+        - action: script.astv_find_area_domain_endpoints
+          metadata: {}
+          data:
+            domain: '{{ request.params.output.domain }}'
+            area: '{{ target_area }}'
+          response_variable: area_domain_response
+        - action: script.astv_resolve_playback_method
+          metadata: {}
+          data:
+            preferences: '{{ area_domain_response.preference }}'
+            available_sources: '{{ media_record_response.execution_methods }}'
+          response_variable: playback_method_response
+        - action: script.astv_select_area_playback_endpoint
+          metadata: {}
+          data:
+            area_playback_domain: '{{ area_domain_response }}'
+            playback_method: '{{ playback_method_response.selected_source }}'
+          response_variable: area_playback_endpoint_response
+        - variables:
+            execution_method: '{{ area_playback_endpoint_response.keys() | first | default('''',
+              true) }}'
+            selected_endpoint: '{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys()
+              | first, {}) }}'
+        - variables:
+            media_intent_response:
+              request: '{{ request }}'
+              target_area: '{{ target_area }}'
+              execution_method: '{{ execution_method }}'
+              selected_endpoint: '{{ selected_endpoint }}'
+              media_record: '{{ media_record_response }}'
+        - stop: Media intent prepared from MediaCat
+          response_variable: media_intent_response
+    - action: script.astv_find_area_domain_endpoints
+      metadata: {}
+      data:
+        domain: '{{ request.params.output.domain }}'
+        area: '{{ target_area }}'
+      response_variable: area_domain_response
+    - action: script.astv_resolve_playback_method
+      metadata: {}
+      data:
+        preferences: '{{ area_domain_response.preference }}'
+        available_sources: '{{ request.params.sources }}'
+      response_variable: playback_method_response
+    - action: script.astv_select_area_playback_endpoint
+      metadata: {}
+      data:
+        area_playback_domain: '{{ area_domain_response }}'
+        playback_method: '{{ playback_method_response.selected_source }}'
+      response_variable: area_playback_endpoint_response
+    - variables:
+        execution_method: '{{ area_playback_endpoint_response.keys() | first | default('''',
+          true) }}'
+        selected_endpoint: '{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys()
+          | first, {}) }}'
+    - variables:
+        media_intent_response:
+          request: '{{ request }}'
+          target_area: '{{ target_area }}'
+          execution_method: '{{ execution_method }}'
+          selected_endpoint: '{{ selected_endpoint }}'
+    - stop: Media intent prepared
+      response_variable: media_intent_response
+    mode: parallel
+    max: 10
+
+  astv_resolve_playback_method:
+    sequence:
+    - variables:
+        available_source_names: '{{ available_sources.keys() | list }}'
+    - variables:
+        matching_sources: "{{\n  preferences\n  | select('in', available_source_names)\n
+          \ | list\n}}"
+    - variables:
+        playback_method_response:
+          selected_source: '{{ matching_sources | first }}'
+    - stop: Preferred source selected
+      response_variable: playback_method_response
+    alias: 'ASTV - Fn: Resolve Playback Method'
+    description: ''
+    fields:
+      preferences:
+        selector:
+          object: {}
+        name: Preferences
+      available_sources:
+        selector:
+          object: {}
+        name: Available Sources
+    mode: parallel
+    max: 10
+
+  astv_select_area_playback_endpoint:
+    alias: 'ASTV - Fn: Select Area Playback Endpoint'
+    description: ''
+    fields:
+      area_playback_domain:
+        name: Area Playback Domain
+        required: true
+        selector:
+          object: {}
+      playback_method:
+        name: Playback Method
+        required: true
+        selector:
+          text: {}
+    sequence:
+    - variables:
+        selected_endpoint: '{{ area_playback_domain.get(playback_method, {}) }}'
+    - variables:
+        area_playback_endpoint_response: '{{ { playback_method: selected_endpoint }
+          }}
+
+          '
+    - stop: Area playback endpoint selected
+      response_variable: area_playback_endpoint_response
+    mode: parallel
+    max: 10
+
+  astv_intent_engine_routine:
+    alias: 'ASTV - Intent Engine: Routine'
+    description: Prepares the shared Phase 2 execution interface for a Routine request
+      without resolving or executing it.
+    mode: parallel
+    max: 10
+    fields:
+      request:
+        name: Request
+        description: The complete ASTV request object.
+        required: true
+        selector:
+          object: {}
+      target_area:
+        name: Target Area
+        description: The resolved ASTV target area.
+        required: true
+        selector:
+          text: {}
+    sequence:
+    - variables:
+        routine_intent_response:
+          request: '{{ request }}'
+          target_area: '{{ target_area }}'
+          execution_method: g_automation
+          selected_endpoint: {}
+    - stop: Routine intent prepared
+      response_variable: routine_intent_response

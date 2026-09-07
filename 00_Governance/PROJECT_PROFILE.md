@@ -8,7 +8,7 @@ is current under the approved Central Governance authority.
 ## Document status
 
 - Governance state: current approved
-- Exact migration baseline: `aa62fb8edac8b5ad0d184c19b96e7124367dc7cb`
+- Exact migration baseline: `34e211688a35644901413bd79613a9919d6986c6`
 
 ## Product identity
 
@@ -124,25 +124,35 @@ reused product, platform, service, entity, or infrastructure names.
 ## Production and evidence route
 
 - Production route: ASTV runs in the Home Assistant `starburst` instance. Its
-  current configured implementation includes `/config/packages/astv/astv_scripts.yaml`
-  and ASTV data under `/config/assistive/`; storage-managed definitions are
-  operated through Home Assistant's governed configuration route.
-- Evidence route: sibling read-only evidence under
-  `Production_ReadOnly/starburst/`, supplemented where authorized by verified
-  live read-only Home Assistant inspection.
+  current configured implementation is split across `/config/packages/astv/`,
+  ASTV data under `/config/assistive/`, and the current Tag Listener/runtime
+  definitions being migrated from the common Home Assistant YAML files.
+- Evidence route: the production-baseline capture in
+  `83degrees/ha-production-baseline` at commit
+  `34e211688a35644901413bd79613a9919d6986c6`, supplemented where authorized by
+  verified live read-only Home Assistant inspection.
 - Provenance and freshness requirement: verify source, capture time, procedure,
   included/excluded content, integrity, and freshness before relying on a
-  snapshot. The retained snapshot has no capture manifest, so its provenance,
-  completeness, and freshness are not independently established.
-- Secrets and mutable-state boundary: credentials, secrets, mutable Home
-  Assistant state, and production snapshots remain outside this repository.
+  snapshot. The migration baseline is a repository capture of the user-supplied
+  current production files; Git identity establishes the captured file state but
+  does not independently prove later runtime deployment state.
+- Secrets and mutable-state boundary: credentials, secrets and mutable Home
+  Assistant state remain outside maintained ASTV product source.
 - Validation evidence route: Linear records the governed work and validation;
   Git/GitHub records the exact candidate and accepted repository SHAs.
-- Known limitations: static snapshot hashes do not prove current live state;
-  live per-item configuration search is partial for YAML-defined entities.
+- Known limitations: a repository candidate does not prove deployed runtime
+  truth; final Home Assistant configuration validation and deployment evidence
+  remain required before the reorganised target can be treated as production.
 
-Current deployable source deliberately remains at
-`04_Source/assistive/astv_intent_catalogue.yaml` and
-`04_Source/astv_adapter_advmedia.json`. No complete current ASTV script
-package is promoted from read-only production evidence or historical rollback
-payloads into this repository by this migration.
+Current deployable ASTV source is maintained under:
+
+- `04_Source/assistive/astv_tag_mapping.yaml`
+- `04_Source/assistive/astv_intent_catalogue.yaml`
+- `04_Source/assistive/astv_area_endpoints2.yaml`
+- `04_Source/packages/astv/`
+
+The package source contains the architecture-defined current ASTV automation,
+protected include-based lookup functions, Phase 0-1 request-resolution scripts,
+Phase 2 intent-routing scripts, and Phase 3 execution scripts. Legacy ASTV
+scripts retained in the production common YAML but excluded from the current
+approved architecture are not promoted as current deployable source.

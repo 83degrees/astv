@@ -143,18 +143,4 @@ reused product, platform, service, entity, or infrastructure names.
 
 ## Repository source baseline
 
-The repository contains the current ASTV implementation baseline under
-`04_Source/config/`. The ASTV-owned source currently includes:
-
-- `04_Source/config/assistive/astv_area_endpoints2.yaml`
-- `04_Source/config/assistive/astv_intent_catalogue.yaml`
-- `04_Source/config/assistive/astv_tag_mapping.yaml`
-- `04_Source/config/packages/astv/astv_automations.yaml`
-- `04_Source/config/packages/astv/astv_helpers.yaml`
-- `04_Source/config/packages/astv/astv_scripts.yaml`
-
-This repository source baseline is the product's governed source copy for
-comparison, change and review. It is not, solely by virtue of being present in
-`04_Source`, independently verified current production evidence. Current
-runtime assertions continue to use the approved evidence route above and the
-applicable provenance and freshness requirements.
+The current ASTV implementation baseline is held under `04_Source/config/`.

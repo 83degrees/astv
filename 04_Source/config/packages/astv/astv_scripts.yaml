@@ -1,0 +1,1606 @@
+# ============================================================================
+# ASTV Protected Scripts
+#
+# These scripts are stored as a package because they contain !include
+# statements. They must not be recreated in the Home Assistant Script UI,
+# otherwise the UI will overwrite the includes.
+# ============================================================================
+
+script:
+  astv_find_tag_record:
+    alias: 'ASTV - Fn: Find Tag Record'
+    description: Returns the tag-mapping record matching a scanned UID
+    mode: parallel
+    max: 10
+    fields:
+      uid:
+        name: UID
+        description: Scanned NFC UID
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        tag_mapping: !include ../../assistive/astv_tag_mapping.yaml
+        lookup_uid: '{{ uid | string | trim | upper }}'
+    - variables:
+        tag_record_response: '{{ tag_mapping.get(lookup_uid, {}) }}'
+    - stop: Tag lookup complete
+      response_variable: tag_record_response
+
+  astv_find_intent_record:
+    alias: 'ASTV - Fn: Find Intent Record'
+    description: Returns the intent-catalogue record matching an intent ID
+    mode: parallel
+    max: 10
+    fields:
+      intent_id:
+        name: Intent ID
+        description: Canonical ASTV intent ID
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        intent_catalogue: !include ../../assistive/astv_intent_catalogue.yaml
+        lookup_intent_id: '{{ intent_id | string | trim | lower }}'
+    - variables:
+        intent_record_response: '{{ intent_catalogue.get(lookup_intent_id, {}) }}'
+    - stop: Intent lookup complete
+      response_variable: intent_record_response
+
+  astv_find_area_domain_endpoints:
+    alias: 'ASTV - Fn: Find Area Domain Endpoints'
+    description: Returns the endpoints for the provided domain within the provided area
+    mode: parallel
+    max: 10
+    fields:
+      domain:
+        selector:
+          text: null
+        name: Domain
+        required: true
+      area:
+        selector:
+          area:
+        name: Area
+    sequence:
+    - variables:
+        endpoints: !include ../../assistive/astv_area_endpoints2.yaml
+    - variables:
+        area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
+    - stop: Area playback domain endpoints found
+      response_variable: area_domain_response
+
+  # Migrated from common /config/scripts.yaml
+  astv_resolver:
+    alias: ASTV - Resolver
+    mode: parallel
+    fields:
+      reader_entity:
+        name: Reader entity (last UID sensor)
+        selector:
+          entity:
+            domain: sensor
+      override_uid:
+        name: Override UID (optional)
+        selector:
+          text:
+      override_area_id:
+        name: Override area_id (optional)
+        selector:
+          text:
+    variables:
+      TAGS:
+        A9F236C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: custom_radio
+          title: BBC Radio 2
+          params:
+            content_type: station
+            content_id: bbc_radio_2
+        FD2637C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: url
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: https://media-ice.musicradio.com/ClassicFMMP3
+            icon_url: /local/radio-logos/Classic-FM.png
+            mime: audio/mp3
+        7AB06354E000:
+          intent: media.play_source
+          domain: audio
+          provider: radio_browser
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: media-source://radio_browser/bd1c441c-132a-4d48-a3f3-bdb386f4b09a
+            icon_url: /local/radio-logos/Classic-FM.png
+        A12345:
+          intent: media.play_source
+          domain: screen_cast
+          provider: plex
+          title: TEST TITLE
+          params:
+            content_type: movie
+            content_id: testing1
+            thumb_url: abcd
+        B12345:
+          intent: media.play_channel
+          domain: screen_tv
+          provider: bbc_iplayer
+          title: TEST TITLE
+          params:
+            content_type: channel
+            content_id: testing2
+            channel_key: abcd
+            ir_code: 101.0
+        C12345:
+          intent: media.device.control
+          domain: abcd
+          title: TESTING1
+          params:
+            action: 101.0
+      AREA_ENDPOINTS:
+        living_room:
+          audio:
+            media_entity: media_player.gnest_03
+            driver: TEST
+          screen_cast:
+            media_entity: media_player.chromecast_01
+            driver: TEST
+          tv:
+            media_entity: TEST2
+            driver: TEST3
+            profile: noddytv
+        kitchen:
+          audio:
+            media_entity: media_player.gnest_02
+            driver: TEST
+        martin_bedroom:
+          audio:
+            media_entity: media_player.gnest_01
+            driver: TEST
+        5fa17a3cccaf4af0a5daef18141375fd:
+          audio:
+            media_entity: media_player.kitchen_speaker
+            driver: TEST
+      uid: "{% if override_uid is defined and override_uid|length > 0 %}\n  {{ override_uid
+        }}\n{% else %}\n  {{ states(reader_entity) }}\n{% endif %}"
+      tag: '{{ TAGS.get(uid, {}) }}'
+      intent: '{{ tag.get(''intent'','''') }}'
+      provider: '{{ tag.get(''provider'','''') }}'
+      station_label: '{{ tag.get(''station'','''') }}'
+      p: '{{ tag.get(''params'', {}) }}'
+      tag_area_override: '{{ tag.get(''area_override'','''') }}'
+      derived_area_id: "{% if override_area_id is defined and override_area_id|length
+        > 0 %}\n  {{ override_area_id }}\n{% elif tag_area_override|length > 0 %}\n
+        \ {{ tag_area_override }}\n{% else %}\n  {{ area_id(reader_entity) }}\n{% endif
+        %}"
+      action_endpoints: '{{ AREA_ENDPOINTS.get(derived_area_id, {}) }}'
+      audio_entity: '{{ action_endpoints.get(''audio'','''') }}'
+      screen_entity: '{{ action_endpoints.get(''screen'','''') }}'
+      reader_area_id: '{{ area_id(reader_entity) }}'
+      feedback_endpoints: '{{ AREA_ENDPOINTS.get(reader_area_id, {}) }}'
+      feedback_audio_entity: '{{ feedback_endpoints.get(''audio'','''') }}'
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ uid|length > 0 and intent|length > 0 }}'
+        sequence:
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ feedback_audio_entity|length > 0 }}'
+            sequence:
+            - service: script.astv_sound_tag_feedback
+              data:
+                target_entity: '{{ feedback_audio_entity }}'
+                result: found
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ intent == ''audio.play_station'' and provider == ''custom_radio''
+                }}'
+            sequence:
+            - service: script.custom_radio_play_station
+              data:
+                target_entity: '{{ audio_entity }}'
+                station_id: '{{ p.get(''station_id'','''') }}'
+                station: '{{ station_label }}'
+          - conditions:
+            - condition: template
+              value_template: "{{ intent == 'audio.play_station'\n   and provider in
+                ['url','radio_browser','google_asst'] }}\n"
+            sequence:
+            - service: script.astv_action_audio_play_station
+              data:
+                target_entity: '{{ audio_entity }}'
+                provider: '{{ provider }}'
+                station: '{{ station_label }}'
+                media_id: '{{ p.get(''media_id'','''') }}'
+                url: '{{ p.get(''url'','''') }}'
+                mime: '{{ p.get(''mime'','''') }}'
+                asst_command: '{{ p.get(''asst_command'','''') }}'
+                station_id: '{{ p.get(''station_id'','''') }}'
+                icon_url: '{{ p.get(''icon_url'','''') }}'
+      default:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ feedback_audio_entity|length > 0 }}'
+          sequence:
+          - service: script.astv_sound_tag_feedback
+            data:
+              target_entity: '{{ feedback_audio_entity }}'
+              result: not_found
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver - Error
+          message: Tag not found or missing intent. UID='{{ uid }}' intent='{{ intent
+            }}'
+  astv_sound_tag_feedback:
+    alias: ASTV - Sound - Tag Feedback
+    mode: queued
+    fields:
+      target_entity:
+        name: Target media player
+        selector:
+          entity:
+            domain: media_player
+      result:
+        name: Result
+        description: '''found'' or ''not_found'''
+        selector:
+          select:
+            options:
+            - found
+            - not_found
+    variables:
+      result_final: '{{ (result or ''found'') | lower }}'
+      sound_media_id: "{% if result_final == 'not_found' %}\n  media-source://media_source/local/beep-negative.mp3\n{%
+        else %}\n  media-source://media_source/local/beep-positive.mp3\n{% endif %}"
+      sound_media_type: music
+      target_state: '{{ states(target_entity) if target_entity is not none else ''''
+        }}'
+      suppress_positive: "{% if result_final == 'found' and target_state == 'playing'
+        %}\n  true\n{% else %}\n  false\n{% endif %}"
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ suppress_positive == ''true'' }}'
+        sequence: []
+      - conditions:
+        - condition: template
+          value_template: '{{ target_entity is not none and target_entity|length > 0
+            }}'
+        sequence:
+        - service: media_player.play_media
+          target:
+            entity_id: '{{ target_entity }}'
+          data:
+            media_content_id: '{{ sound_media_id }}'
+            media_content_type: '{{ sound_media_type }}'
+      default: []
+  astv_resolver_v2:
+    alias: ASTV - Resolver (v2)
+    mode: parallel
+    fields:
+      reader_entity:
+        name: Reader entity (last UID sensor)
+        selector:
+          entity:
+            domain: sensor
+    variables:
+      debug_enabled: '{{ is_state(''input_boolean.astv_debug_mode'', ''on'') }}'
+      TAGS:
+        A9F236C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: custom_radio
+          title: BBC Radio 2
+          params:
+            content_type: station
+            content_id: bbc_radio_2
+        FD2637C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: url
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: https://media-ice.musicradio.com/ClassicFMMP3
+            icon_url: /local/radio-logos/Classic-FM.png
+            mime: audio/mp3
+        7AB06354E000:
+          intent: media.play_source
+          domain: audio
+          provider: radio_browser
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: media-source://radio_browser/bd1c441c-132a-4d48-a3f3-bdb386f4b09a
+            icon_url: /local/radio-logos/Classic-FM.png
+        A12345:
+          intent: media.play_source
+          domain: screen_cast
+          provider: plex
+          title: TEST TITLE
+          params:
+            content_type: movie
+            content_id: testing1
+            thumb_url: abcd
+        B12345:
+          intent: media.play_channel
+          domain: screen_tv
+          provider: bbc_iplayer
+          title: TEST TITLE
+          params:
+            content_type: channel
+            content_id: testing2
+            channel_key: abcd
+            ir_code: 101.0
+        C12345:
+          intent: media.device.control
+          domain: abcd
+          title: TESTING1
+          params:
+            action: 101.0
+      AREA_ENDPOINTS:
+        living_room:
+          audio:
+            media_entity: media_player.gnest_03
+            driver: TEST
+          screen_cast:
+            media_entity: media_player.chromecast_01
+            driver: TEST
+          tv:
+            media_entity: TEST2
+            driver: TEST3
+            profile: noddytv
+        kitchen:
+          audio:
+            media_entity: media_player.gnest_02
+            driver: TEST
+        martin_bedroom:
+          audio:
+            media_entity: media_player.gnest_01
+            driver: TEST
+        5fa17a3cccaf4af0a5daef18141375fd:
+          audio:
+            media_entity: media_player.kitchen_speaker
+            driver: TEST
+      uid: '{{ states(reader_entity) }}'
+      tag: '{{ TAGS.get(uid, {}) }}'
+      intent: '{{ tag.get(''intent'','''') }}'
+      provider: '{{ tag.get(''provider'','''') }}'
+      title: '{{ tag.get(''title'','''') }}'
+      domain: '{{ tag.get(''domain'','''') }}'
+      p: '{{ tag.get(''params'', {}) }}'
+      tag_area_override: '{{ tag.get(''area_override'','''') }}'
+      derived_area_id: "{% if tag_area_override|length > 0 %}\n  {{ tag_area_override
+        }}\n{% else %}\n  {{ area_id(reader_entity) }}\n{% endif %}"
+      action_endpoints: '{{ AREA_ENDPOINTS.get(derived_area_id, {}) }}'
+      target_cfg: '{{ action_endpoints.get(domain, {}) }}'
+      target_entity: '{{ target_cfg.get(''media_entity'', '''') }}'
+      target_driver: '{{ target_cfg.get(''driver'', '''') }}'
+      target_profile: '{{ target_cfg.get(''profile'', '''') }}'
+      driver_script: "{% if target_driver|length > 0 %}\n  {{ 'script.' ~ target_driver
+        }}\n{% else %}\n  ''\n{% endif %}"
+      reader_area_id: '{{ area_id(reader_entity) }}'
+      feedback_endpoints: '{{ AREA_ENDPOINTS.get(reader_area_id, {}) }}'
+      feedback_audio_cfg: '{{ feedback_endpoints.get(''audio'', {}) }}'
+      feedback_audio_entity: '{{ feedback_audio_cfg.get(''media_entity'', '''') }}'
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ debug_enabled }}'
+      then:
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver Debug
+          message: ASTV Resolver called. UID='{{ uid }}' intent='{{ intent }}' provider='{{
+            provider }}' title='{{ title }}' domain='{{ domain }}' reader_entity='{{
+            reader_entity }}' derived_area_id='{{ derived_area_id }}' reader_area_id='{{
+            reader_area_id }}' target_entity='{{ target_entity }}' target_driver='{{
+            target_driver }}' target_profile='{{ target_profile }}' driver_script='{{
+            driver_script }}' feedback_audio_entity='{{ feedback_audio_entity }}'
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ uid|length > 0 and intent|length > 0 }}'
+        sequence:
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ feedback_audio_entity|length > 0 }}'
+            sequence:
+            - service: script.astv_sound_tag_feedback
+              data:
+                target_entity: '{{ feedback_audio_entity }}'
+                result: found
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: "{{ target_entity|length > 0\n   and driver_script|length
+                > 0 }}\n"
+            sequence:
+            - service: '{{ driver_script }}'
+              data:
+                area_id: '{{ derived_area_id }}'
+                reader_area_id: '{{ reader_area_id }}'
+                reader_entity: '{{ reader_entity }}'
+                intent: '{{ intent }}'
+                domain: '{{ domain }}'
+                target_entity: '{{ target_entity }}'
+                profile: '{{ target_profile }}'
+                uid: '{{ uid }}'
+                title: '{{ title }}'
+                provider: '{{ provider }}'
+                params: '{{ p }}'
+                debug: '{{ debug_enabled }}'
+          - conditions:
+            - condition: template
+              value_template: "{{ target_entity|length == 0\n   or driver_script|length
+                == 0 }}\n"
+            sequence:
+            - service: persistent_notification.create
+              data:
+                title: ASTV Resolver - Endpoint/Driver Missing
+                message: Resolver found tag but no valid endpoint/driver. UID='{{ uid
+                  }}' intent='{{ intent }}' domain='{{ domain }}' derived_area_id='{{
+                  derived_area_id }}' target_entity='{{ target_entity }}' target_driver='{{
+                  target_driver }}' driver_script='{{ driver_script }}'
+      default:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ feedback_audio_entity|length > 0 }}'
+          sequence:
+          - service: script.astv_sound_tag_feedback
+            data:
+              target_entity: '{{ feedback_audio_entity }}'
+              result: not_found
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver - Error
+          message: Tag not found or missing intent. UID='{{ uid }}' intent='{{ intent
+            }}'
+  astv_select_intent_engine:
+    alias: ASTV - Select Intent Engine
+    description: Selects one Phase 2 intent engine, captures its shared response, then
+      dispatches once through the global Phase 3 selector.
+    fields:
+      request:
+        selector:
+          object:
+        name: Request
+        required: true
+        description: The UID object found for the scanned UID.
+      target_area:
+        selector:
+          text:
+        name: Target Area
+        required: true
+        description: The area resolved for this ASTV request.
+    sequence:
+    - variables:
+        intent: '{{ request.intent }}'
+        intent_path: '{{ intent.split(''.'') }}'
+    - alias: Choose Intent Engine based on intent_path
+      choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ intent_path[0] == ''media'' }}'
+        sequence:
+        - action: script.astv_intent_engine_media
+          metadata: {}
+          data:
+            request: '{{ request }}'
+            target_area: '{{ target_area }}'
+          response_variable: intent_response
+        alias: Media.*
+      - conditions:
+        - condition: template
+          value_template: '{{ intent_path[0] == ''routine'' }}'
+        sequence:
+        - action: script.astv_intent_engine_routine
+          metadata: {}
+          data:
+            request: '{{ request }}'
+            target_area: '{{ target_area }}'
+          response_variable: intent_response
+        alias: Routine.*
+      default:
+      - action: notify.persistent_notification
+        metadata: {}
+        data:
+          message: 'No intent recognised for:
+
+
+            Title: {{ request.title }}
+
+            Intent: {{ intent }}
+
+            Intent Path: {{ intent_path }}'
+          title: Intent not recognised
+      - stop: Intent not recognised
+        error: true
+    - variables:
+        dispatcher_input: "{% set base = {\n  'request': intent_response.request,\n
+          \ 'target_area': intent_response.target_area,\n  'execution_method': intent_response.execution_method,\n
+          \ 'selected_endpoint': intent_response.selected_endpoint\n} %}\n{{ dict(base,
+          media_record=intent_response.media_record)\n   if intent_response.media_record
+          is defined\n   else base }}"
+    - action: script.astv_select_execution_engine
+      data: '{{ dispatcher_input }}'
+    mode: parallel
+    max: 10
+  astv_uid_gateway:
+    alias: ASTV - UID Gateway
+    description: ''
+    fields:
+      uid:
+        selector:
+          text:
+        name: UID
+        required: true
+        description: Received UID
+      trigger_entity:
+        selector:
+          entity:
+        default: sensor.pi_nfc_99_last_uid
+        name: Trigger Entity
+    sequence:
+    - action: script.astv_find_tag_record
+      data:
+        uid: '{{ uid }}'
+      response_variable: tag_record_response
+    - if:
+      - condition: template
+        value_template: '{{ tag_record_response | default({}, true) | count == 0 }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: No Tag Record Found
+          message: 'No tag record found for UID:
+
+            {{ uid }}'
+      - stop: No tag record found
+        error: false
+    - if:
+      - condition: template
+        value_template: '{{ tag_record_response.intent_id | default('''', true) | string
+          | trim == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: Invalid Tag Record
+          message: 'Tag record for UID ''{{ uid }}'' has no valid intent_id.
+
+
+            Record: {{ tag_record_response }}'
+      - stop: Invalid tag record
+        error: false
+    - variables:
+        resolved_intent_id: '{{ tag_record_response.intent_id | string | trim }}'
+        tag_area_override: '{{ tag_record_response.area_override | default('''', true)
+          | string | trim }}'
+    - action: persistent_notification.create
+      data:
+        title: Tag Record Found
+        message: 'UID: {{ uid }}
+
+          Trigger Entity: {{ trigger_entity }}
+
+          Intent ID: {{ resolved_intent_id }}
+
+          Area Override: {{ tag_area_override if tag_area_override != '''' else ''(none)''
+          }}'
+    - action: script.astv_intent_gateway
+      data:
+        intent_id: '{{ resolved_intent_id }}'
+        trigger_area_override: '{{ tag_area_override }}'
+        trigger_entity: '{{ trigger_entity }}'
+    mode: parallel
+    max: 10
+  astv_intent_engine_media:
+    alias: 'ASTV - Intent Engine: Media'
+    description: Resolves Media execution details through the legacy path or the installed
+      MediaCat compatibility path without executing it.
+    fields:
+      request:
+        selector:
+          object:
+        name: Request
+        required: true
+        description: The UID object found for the scanned UID.
+      target_area:
+        selector:
+          text:
+        name: Target Area
+        required: true
+        description: The area resolved for this ASTV request.
+    sequence:
+    - variables:
+        catalogue_id: '{{ request.params.catalogue_id | default('''', true) | string
+          | trim }}'
+        item_id: '{{ request.params.item_id | default('''', true) | string | trim }}'
+    - alias: Select Media reference path
+      choose:
+      - alias: Incomplete MediaCat reference
+        conditions:
+        - condition: template
+          value_template: '{{ (catalogue_id != '''') != (item_id != '''') }}'
+        sequence:
+        - action: persistent_notification.create
+          data:
+            title: Incomplete MediaCat Reference
+            message: 'Media intent ''{{ request.title | default(''(untitled)'', true)
+              }}'' supplied an incomplete MediaCat reference.
+
+
+              catalogue_id: {{ catalogue_id if catalogue_id != '''' else ''(blank)''
+              }}
+
+              item_id: {{ item_id if item_id != '''' else ''(blank)'' }}'
+        - stop: Incomplete MediaCat reference
+          error: true
+      - alias: Normalized MediaCat reference
+        conditions:
+        - condition: template
+          value_template: '{{ catalogue_id != '''' and item_id != '''' }}'
+        sequence:
+        - action: curated_media.resolve_media_record
+          data:
+            catalogue_id: '{{ catalogue_id }}'
+            item_id: '{{ item_id }}'
+          response_variable: media_record_response
+        - action: script.astv_find_area_domain_endpoints
+          metadata: {}
+          data:
+            domain: '{{ request.params.output.domain }}'
+            area: '{{ target_area }}'
+          response_variable: area_domain_response
+        - action: script.astv_resolve_playback_method
+          metadata: {}
+          data:
+            preferences: '{{ area_domain_response.preference }}'
+            available_sources: '{{ media_record_response.execution_methods }}'
+          response_variable: playback_method_response
+        - action: script.astv_select_area_playback_endpoint
+          metadata: {}
+          data:
+            area_playback_domain: '{{ area_domain_response }}'
+            playback_method: '{{ playback_method_response.selected_source }}'
+          response_variable: area_playback_endpoint_response
+        - variables:
+            execution_method: '{{ area_playback_endpoint_response.keys() | first | default('''',
+              true) }}'
+            selected_endpoint: '{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys()
+              | first, {}) }}'
+        - variables:
+            media_intent_response:
+              request: '{{ request }}'
+              target_area: '{{ target_area }}'
+              execution_method: '{{ execution_method }}'
+              selected_endpoint: '{{ selected_endpoint }}'
+              media_record: '{{ media_record_response }}'
+        - stop: Media intent prepared from MediaCat
+          response_variable: media_intent_response
+    - action: script.astv_find_area_domain_endpoints
+      metadata: {}
+      data:
+        domain: '{{ request.params.output.domain }}'
+        area: '{{ target_area }}'
+      response_variable: area_domain_response
+    - action: script.astv_resolve_playback_method
+      metadata: {}
+      data:
+        preferences: '{{ area_domain_response.preference }}'
+        available_sources: '{{ request.params.sources }}'
+      response_variable: playback_method_response
+    - action: script.astv_select_area_playback_endpoint
+      metadata: {}
+      data:
+        area_playback_domain: '{{ area_domain_response }}'
+        playback_method: '{{ playback_method_response.selected_source }}'
+      response_variable: area_playback_endpoint_response
+    - variables:
+        execution_method: '{{ area_playback_endpoint_response.keys() | first | default('''',
+          true) }}'
+        selected_endpoint: '{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys()
+          | first, {}) }}'
+    - variables:
+        media_intent_response:
+          request: '{{ request }}'
+          target_area: '{{ target_area }}'
+          execution_method: '{{ execution_method }}'
+          selected_endpoint: '{{ selected_endpoint }}'
+    - stop: Media intent prepared
+      response_variable: media_intent_response
+    mode: parallel
+    max: 10
+  astv_resolve_area:
+    alias: 'ASTV - Fn: Resolve Area'
+    description: ''
+    fields:
+      trigger_area_override:
+        selector:
+          text:
+        name: Trigger Area Override
+        description: Optional area override supplied by the trigger context.
+      intent_area_override:
+        selector:
+          text:
+        name: Intent Area Override
+        description: Optional area override supplied by the intent context.
+      trigger_entity:
+        selector:
+          entity:
+        name: Trigger Entity
+        description: Optional entity whose Home Assistant area is used as the fallback.
+    sequence:
+    - variables:
+        trigger_override: '{{ trigger_area_override | default('''', true) | string |
+          trim }}'
+        intent_override: '{{ intent_area_override | default('''', true) | string | trim
+          }}'
+        trigger_area: '{{ area_id(trigger_entity) | default('''', true) if trigger_entity
+          is defined and trigger_entity | string | trim != '''' else '''' }}'
+    - variables:
+        target_area: '{{ trigger_override if trigger_override != '''' else intent_override
+          if intent_override != '''' else trigger_area | default('''', true) }}'
+    - variables:
+        area_response:
+          target_area: '{{ target_area | default('''', true) }}'
+    - stop: Area resolved
+      response_variable: area_response
+    mode: parallel
+    max: 10
+  astv_resolve_playback_method:
+    sequence:
+    - variables:
+        available_source_names: '{{ available_sources.keys() | list }}'
+    - variables:
+        matching_sources: "{{\n  preferences\n  | select('in', available_source_names)\n
+          \ | list\n}}"
+    - variables:
+        playback_method_response:
+          selected_source: '{{ matching_sources | first }}'
+    - stop: Preferred source selected
+      response_variable: playback_method_response
+    alias: 'ASTV - Fn: Resolve Playback Method'
+    description: ''
+    fields:
+      preferences:
+        selector:
+          object:
+        name: Preferences
+      available_sources:
+        selector:
+          object:
+        name: Available Sources
+    mode: parallel
+    max: 10
+  astv_select_area_playback_endpoint:
+    alias: 'ASTV - Fn: Select Area Playback Endpoint'
+    description: ''
+    fields:
+      area_playback_domain:
+        name: Area Playback Domain
+        required: true
+        selector:
+          object:
+      playback_method:
+        name: Playback Method
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        selected_endpoint: '{{ area_playback_domain.get(playback_method, {}) }}'
+    - variables:
+        area_playback_endpoint_response: '{{ { playback_method: selected_endpoint }
+          }}
+
+          '
+    - stop: Area playback endpoint selected
+      response_variable: area_playback_endpoint_response
+    mode: parallel
+    max: 10
+  astv_ha_mplayer_engine:
+    alias: ASTV - HA Media Player Engine
+    description: ''
+    mode: parallel
+    max: 10
+    fields:
+      request:
+        name: Request
+        description: The UID object found for the scanned UID.
+        required: true
+        selector:
+          object:
+      selected_endpoint:
+        name: Selected Endpoint
+        selector:
+          object:
+      execution_method:
+        name: Execution Method
+        description: The ASTV-selected execution method carried for normalized media
+          context.
+        required: false
+        selector:
+          text:
+      media_record:
+        name: Media Record
+        description: The complete normalized MediaCat returned record carried unchanged
+          when supplied.
+        required: false
+        selector:
+          object:
+    sequence:
+    - variables:
+        media_player_entity: '{{ selected_endpoint.media_entity }}'
+        normalized_method_supplied: '{{ execution_method is defined }}'
+        normalized_record_supplied: '{{ media_record is defined }}'
+    - choose:
+      - alias: Normalized MediaCat context
+        conditions:
+        - condition: template
+          value_template: '{{ normalized_method_supplied and normalized_record_supplied
+            }}'
+        sequence:
+        - action: script.astv_adapter_advmedia
+          data:
+            media_record: '{{ media_record }}'
+            selected_execution_method: '{{ execution_method }}'
+            media_player: '{{ media_player_entity }}'
+          response_variable: provider_payload_response
+      - alias: Deployed legacy provider context
+        conditions:
+        - condition: template
+          value_template: '{{ not normalized_method_supplied and not normalized_record_supplied
+            }}'
+        sequence:
+        - variables:
+            ha_mplayer_request_object: '{{ request.params.sources.ha_mplayer }}'
+        - action: script.astv_handle_provider
+          data:
+            request_object: '{{ ha_mplayer_request_object }}'
+            media_player: '{{ media_player_entity }}'
+          enabled: true
+          response_variable: provider_payload_response
+      default:
+      - stop: 'Incomplete normalized HA Media Player handoff: media_record and execution_method
+          must be supplied together'
+        error: true
+    - action: media_player.play_media
+      target:
+        entity_id: '{{ media_player_entity }}'
+      data: '{{ provider_payload_response }}'
+  astv_handle_provider:
+    alias: 'ASTV - Fn: Handle Provider'
+    description: ''
+    mode: parallel
+    max: 10
+    fields:
+      request_object:
+        name: Request Object
+        description: The request object for the playback method selected.
+        required: true
+        selector:
+          object:
+      media_player:
+        name: Media Player
+        description: Runtime-resolved target media player, when required by the provider.
+        required: false
+        selector:
+          entity:
+            domain: media_player
+    sequence:
+    - variables:
+        request_provider: '{{ request_object.provider }}'
+        provider_data_object: '{{ request_object.data }}'
+    - choose:
+      - alias: Radio Browser
+        conditions:
+        - condition: template
+          value_template: '{{ request_provider == ''radio_browser'' }}'
+        sequence:
+        - action: script.astv_provider_radiobrowser
+          metadata: {}
+          data:
+            provider_data_object: '{{ provider_data_object }}'
+          response_variable: provider_payload_response
+        - stop: Provider Payload Response Received
+          response_variable: provider_payload_response
+      - alias: AdvMedia
+        conditions:
+        - condition: template
+          value_template: '{{ request_provider == ''advmedia'' }}'
+        sequence:
+        - action: script.astv_adapter_advmedia
+          data:
+            media_catalogue: '{{ provider_data_object.media_catalogue }}'
+            media_item_id: '{{ provider_data_object.media_item_id }}'
+            media_player: '{{ media_player }}'
+          response_variable: provider_payload_response
+        - stop: Provider Payload Response Received
+          response_variable: provider_payload_response
+      default:
+      - action: notify.persistent_notification
+        metadata: {}
+        data:
+          title: 'ASTV - Fn: Handle Provider'
+          message: 'No provider found for Request Provider: {{ request_provider }}'
+      - stop: No Provider Found
+        error: true
+  astv_provider_radiobrowser:
+    sequence:
+    - variables:
+        provider_payload_response:
+          media_content_id: '{{ provider_data_object.content_id }}'
+          media_content_type: '{{ provider_data_object.content_type }}'
+          extra:
+            title: '{{ provider_data_object.title }}'
+            thumb: '{{ provider_data_object.icon_url }}'
+            autoplay: true
+            stream_type: LIVE
+            metadata:
+              metadataType: 3
+              title: '{{ provider_data_object.title }}'
+              images:
+              - url: '{{ provider_data_object.icon_url }}'
+    - stop: Payload built
+      response_variable: provider_payload_response
+    alias: 'ASTV - Fn: Provider - Radio Browser'
+    description: ''
+    fields:
+      provider_data_object:
+        selector:
+          object:
+        name: Provider Data Object
+        required: true
+        description: The data object for the playback provider selected.
+    mode: parallel
+    max: 10
+  astv_adapter_advmedia:
+    alias: 'ASTV - Adapter: AdvMedia'
+    description: Passes one complete normalized media record and ASTV-selected execution
+      context to AdvMedia and returns only the playback payload expected by ASTV.
+    mode: parallel
+    max: 10
+    fields:
+      media_record:
+        name: Media Record
+        description: Complete normalized MediaCat returned record supplied by ASTV.
+        required: true
+        selector:
+          object:
+      selected_execution_method:
+        name: Selected Execution Method
+        description: Execution method already selected by ASTV.
+        required: true
+        selector:
+          text:
+      media_player:
+        name: Media Player
+        description: Target media player entity selected by ASTV.
+        required: true
+        selector:
+          entity:
+            domain: media_player
+      media_profile:
+        name: Media Profile
+        description: Optional explicit mediaprofile_* override. When omitted, AdvMedia
+          resolves the profile from the media player.
+        required: false
+        selector:
+          text:
+    sequence:
+    - action: script.advmedia_process_media_record
+      data:
+        media_record: '{{ media_record }}'
+        selected_execution_method: '{{ selected_execution_method }}'
+        media_player: '{{ media_player }}'
+        media_profile: '{{ media_profile | default('''', true) }}'
+      response_variable: advmedia_response
+    - variables:
+        payload_response: '{{ advmedia_response.playback_payload }}'
+    - stop: ASTV playback payload returned
+      response_variable: payload_response
+  astv_g_home_device_engine:
+    alias: ASTV - Google Home Device Engine
+    description: Executes an ASTV request through a Google Home device endpoint using
+      either deployed legacy request data or the selected normalized MediaCat assistant
+      source.
+    mode: parallel
+    max: 10
+    fields:
+      request:
+        name: Request
+        description: The complete ASTV request object.
+        required: true
+        selector:
+          object:
+      selected_endpoint:
+        name: Selected Endpoint
+        description: The resolved Google Home device endpoint.
+        required: true
+        selector:
+          object:
+      execution_method:
+        name: Execution Method
+        description: The ASTV-selected execution method carried for normalized media
+          context.
+        required: false
+        selector:
+          text:
+      media_record:
+        name: Media Record
+        description: The complete normalized MediaCat returned record carried unchanged
+          when supplied.
+        required: false
+        selector:
+          object:
+    sequence:
+    - variables:
+        normalized_method_supplied: '{{ execution_method is defined }}'
+        normalized_record_supplied: '{{ media_record is defined }}'
+    - choose:
+      - alias: Normalized MediaCat context
+        conditions:
+        - condition: template
+          value_template: '{{ normalized_method_supplied and normalized_record_supplied
+            }}'
+        sequence:
+        - variables:
+            normalized_execution_methods: '{{ media_record.execution_methods | default({},
+              true) }}'
+        - if:
+          - condition: template
+            value_template: '{{ normalized_execution_methods is not mapping or execution_method
+              not in normalized_execution_methods }}'
+          then:
+          - stop: Selected execution method is absent from the normalized media record
+            error: true
+        - variables:
+            selected_execution_data: '{{ normalized_execution_methods[execution_method]
+              }}'
+        - if:
+          - condition: template
+            value_template: '{{ selected_execution_data is not mapping or selected_execution_data.source
+              is not defined or selected_execution_data.source is not mapping }}'
+          then:
+          - stop: Selected normalized execution method has no assistant source
+            error: true
+        - variables:
+            assistant_source: '{{ selected_execution_data.source }}'
+            endpoint_phrase: '{{ selected_endpoint.phrase | default('''', true) }}'
+        - if:
+          - condition: template
+            value_template: '{{ assistant_source.source_type | default('''', true) |
+              string | trim != ''assistant_command'' }}'
+          then:
+          - stop: Selected normalized source is not assistant_command
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ assistant_source.provider | default('''', true) | string
+              | trim != ''google_assistant'' }}'
+          then:
+          - stop: Unsupported normalized assistant provider
+            error: true
+        - variables:
+            normalized_command: '{{ assistant_source.command | default('''', true) |
+              string | trim }}'
+            normalized_append_target: '{{ assistant_source.append_target | bool }}'
+            normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
+              string | trim }}'
+        - if:
+          - condition: template
+            value_template: '{{ normalized_command == '''' }}'
+          then:
+          - stop: Normalized Google Assistant command is missing or blank
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ normalized_append_target and normalized_endpoint_phrase
+              == '''' }}'
+          then:
+          - stop: Normalized Google Assistant command requires a usable endpoint phrase
+            error: true
+        - action: script.astv_provider_g_assist
+          data:
+            assistant_source: '{{ assistant_source }}'
+            endpoint_phrase: '{{ endpoint_phrase }}'
+          response_variable: provider_command_response
+        - variables:
+            normalized_provider_command: '{{ (provider_command_response | default({},
+              true)).get(''command'', '''') | string | trim }}'
+        - if:
+          - condition: template
+            value_template: '{{ normalized_provider_command == '''' }}'
+          then:
+          - stop: Normalized Google Assistant provider returned no usable command
+            error: true
+      - alias: Deployed legacy request context
+        conditions:
+        - condition: template
+          value_template: '{{ not normalized_method_supplied and not normalized_record_supplied
+            }}'
+        sequence:
+        - variables:
+            request_intent: '{{ request.intent }}'
+            endpoint_phrase: '{{ selected_endpoint.phrase }}'
+            g_home_device_request_object: '{{ request.params.sources.g_home_device }}'
+        - action: script.astv_provider_g_assist
+          data:
+            intent: '{{ request_intent }}'
+            request_object: '{{ g_home_device_request_object }}'
+            endpoint_phrase: '{{ endpoint_phrase }}'
+          response_variable: provider_command_response
+      default:
+      - stop: 'Incomplete normalized Google Home Device handoff: media_record and execution_method
+          must be supplied together'
+        error: true
+    - action: google_assistant_sdk.send_text_command
+      metadata: {}
+      data:
+        command: '{{ provider_command_response.command }}'
+  astv_provider_g_assist:
+    alias: 'ASTV - Provider: Google Assist'
+    description: Builds a Google Assistant command from either the deployed legacy request
+      context or a normalized MediaCat assistant source.
+    mode: parallel
+    max: 10
+    fields:
+      intent:
+        name: Intent
+        description: The ASTV intent used by the deployed legacy request context.
+        required: false
+        selector:
+          text:
+      request_object:
+        name: Request Object
+        description: The g_home_device source request object used by the deployed legacy
+          context.
+        required: false
+        selector:
+          object:
+      assistant_source:
+        name: Assistant Source
+        description: The selected normalized MediaCat assistant_command source.
+        required: false
+        selector:
+          object:
+      endpoint_phrase:
+        name: Endpoint Phrase
+        description: The resolved Google Home device phrase.
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        legacy_intent_supplied: '{{ intent is defined }}'
+        legacy_request_supplied: '{{ request_object is defined }}'
+        normalized_source_supplied: '{{ assistant_source is defined }}'
+    - choose:
+      - alias: Deployed legacy provider context
+        conditions:
+        - condition: template
+          value_template: '{{ legacy_intent_supplied and legacy_request_supplied and
+            not normalized_source_supplied }}'
+        sequence:
+        - variables:
+            provider_data_object: '{{ request_object.data }}'
+        - choose:
+          - alias: Media command
+            conditions:
+            - condition: template
+              value_template: '{{ intent == ''media.play_source'' }}'
+            sequence:
+            - action: script.astv_cmd_builder_media
+              data:
+                phrase: '{{ provider_data_object.phrase }}'
+                append_target: '{{ provider_data_object.get(''append_target'', true)
+                  }}'
+                endpoint_phrase: '{{ endpoint_phrase }}'
+              response_variable: command_response
+            - stop: Google Assistant command built
+              response_variable: command_response
+          default:
+          - action: notify.persistent_notification
+            data:
+              title: 'ASTV - Provider: Google Assist'
+              message: 'No Google Assistant command builder is available for intent:
+                {{ intent }}'
+          - stop: Unsupported Google Assistant intent
+            error: true
+      - alias: Normalized assistant source
+        conditions:
+        - condition: template
+          value_template: '{{ normalized_source_supplied and not legacy_intent_supplied
+            and not legacy_request_supplied }}'
+        sequence:
+        - variables:
+            normalized_command: '{{ assistant_source.command | default('''', true) |
+              string | trim }}'
+            normalized_append_target: '{{ assistant_source.append_target | bool }}'
+            normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
+              string | trim }}'
+        - if:
+          - condition: template
+            value_template: '{{ normalized_command == '''' }}'
+          then:
+          - stop: Normalized Google Assistant command is missing or blank
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ normalized_append_target and normalized_endpoint_phrase
+              == '''' }}'
+          then:
+          - stop: Normalized Google Assistant command requires a usable endpoint phrase
+            error: true
+        - action: script.astv_cmd_builder_media
+          data:
+            phrase: '{{ assistant_source.command }}'
+            append_target: '{{ assistant_source.append_target }}'
+            endpoint_phrase: '{{ endpoint_phrase }}'
+          response_variable: command_response
+        - stop: Google Assistant command built
+          response_variable: command_response
+      default:
+      - stop: Incomplete or mixed Google Assistant provider context
+        error: true
+  astv_cmd_builder_media:
+    alias: 'ASTV - Command Builder: Media'
+    description: Builds a Google Assistant media command from the supplied phrase and
+      endpoint.
+    mode: parallel
+    max: 10
+    fields:
+      phrase:
+        name: Phrase
+        description: The base Google Assistant media command.
+        required: true
+        selector:
+          text:
+      append_target:
+        name: Append Target
+        description: Whether the Google Home endpoint phrase should be appended to the
+          command.
+        required: true
+        selector:
+          boolean:
+      endpoint_phrase:
+        name: Endpoint Phrase
+        description: The Google Home device name to append when requested.
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        command_response:
+          command: "{{ (phrase | trim)\n   ~ (' on ' ~ (endpoint_phrase | trim)\n      if
+            (append_target | bool)\n      else '') }}"
+    - stop: Media command built
+      response_variable: command_response
+  astv_find_routine_trigger:
+    alias: 'ASTV - Fn: Find Routine Trigger'
+    description: Finds the trigger helper matching a routine and target area.
+    mode: parallel
+    max: 10
+    fields:
+      routine:
+        name: Routine
+        description: The routine ID to resolve.
+        required: true
+        selector:
+          text:
+      target_area:
+        name: Target Area
+        description: The resolved Home Assistant area ID.
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        routine_label: routine_{{ routine }}
+        matching_triggers: "{{\n  area_entities(target_area)\n  | select('in', label_entities(routine_label))\n
+          \ | select('in', label_entities('matter_gh_trigger'))\n  | list\n}}"
+    - variables:
+        trigger_response:
+          entity_id: '{{ matching_triggers | first if matching_triggers | count == 1
+            else '''' }}'
+    - stop: Routine trigger resolved
+      response_variable: trigger_response
+  astv_g_automation_engine:
+    alias: ASTV - Google Automation Engine
+    description: Resolves and activates the Google automation trigger for a routine
+      and target area.
+    mode: parallel
+    max: 10
+    fields:
+      request:
+        name: Request
+        description: The complete ASTV request object.
+        required: true
+        selector:
+          object:
+      target_area:
+        name: Target Area
+        description: The resolved Home Assistant area ID.
+        required: true
+        selector:
+          text:
+    sequence:
+    - action: script.astv_find_routine_trigger
+      data:
+        routine: '{{ request.routine }}'
+        target_area: '{{ target_area }}'
+      response_variable: trigger_response
+    - if:
+      - condition: template
+        value_template: '{{ trigger_response.entity_id | default('''') == '''' }}'
+      then:
+      - action: notify.persistent_notification
+        data:
+          title: ASTV - Google Automation Engine
+          message: No Google automation trigger was found for routine '{{ request.routine
+            }}' in area '{{ target_area }}'.
+      - stop: No routine trigger found
+        error: true
+    - action: input_boolean.turn_on
+      target:
+        entity_id: '{{ trigger_response.entity_id }}'
+  astv_intent_gateway:
+    alias: ASTV - Intent Gateway
+    description: Resolves a canonical ASTV intent and target area before routing it.
+    mode: parallel
+    max: 10
+    fields:
+      intent_id:
+        name: Intent ID
+        description: Canonical ASTV intent ID
+        required: true
+        selector:
+          text:
+      trigger_area_override:
+        name: Trigger Area Override
+        description: Optional area override supplied by the trigger context.
+        selector:
+          text:
+      trigger_entity:
+        name: Trigger Entity
+        description: Optional entity whose Home Assistant area is used as the fallback.
+        selector:
+          entity:
+    sequence:
+    - action: script.astv_find_intent_record
+      data:
+        intent_id: '{{ intent_id }}'
+      response_variable: intent_record_response
+    - if:
+      - condition: template
+        value_template: '{{ intent_record_response | default({}, true) | count == 0
+          }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: No Intent Record Found
+          message: 'No record found for intent ID:
+
+            {{ intent_id }}'
+      - stop: No intent record found
+        error: false
+    - action: script.astv_resolve_area
+      data:
+        trigger_area_override: '{{ trigger_area_override | default('''', true) }}'
+        intent_area_override: '{{ intent_record_response.area_override | default('''',
+          true) }}'
+        trigger_entity: '{{ trigger_entity | default('''', true) }}'
+      response_variable: area_response
+    - variables:
+        target_area: '{{ area_response.target_area | default('''', true) | string |
+          trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ target_area == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: No Target Area Resolved
+          message: 'No target area was resolved for intent ID:
+
+            {{ intent_id }}'
+      - stop: No target area resolved
+        error: false
+    - action: script.astv_select_intent_engine
+      data:
+        request: '{{ intent_record_response }}'
+        target_area: '{{ target_area }}'
+  astv_select_execution_engine:
+    alias: ASTV - Select Execution Engine
+    description: Dispatches an ASTV execution request to the selected implemented execution
+      engine.
+    mode: parallel
+    max: 10
+    fields:
+      execution_method:
+        name: Execution Method
+        description: The resolved execution method.
+        required: true
+        selector:
+          text:
+      request:
+        name: Request
+        description: The complete ASTV request object.
+        required: true
+        selector:
+          object:
+      target_area:
+        name: Target Area
+        description: The resolved ASTV target area retained as pipeline context.
+        required: true
+        selector:
+          text:
+      selected_endpoint:
+        name: Selected Endpoint
+        description: The endpoint selected for the execution method.
+        required: true
+        selector:
+          object:
+      media_record:
+        name: Media Record
+        description: The complete normalized MediaCat returned record carried unchanged
+          when supplied.
+        required: false
+        selector:
+          object:
+    sequence:
+    - variables:
+        resolved_execution_method: '{{ execution_method | default('''', true) | string
+          | trim }}'
+        resolved_selected_endpoint: '{{ selected_endpoint | default({}, true) }}'
+        resolved_target_area: '{{ target_area | default('''', true) | string | trim
+          }}'
+    - choose:
+      - alias: HA Media Player
+        conditions:
+        - condition: template
+          value_template: '{{ resolved_execution_method == ''ha_mplayer'' }}'
+        sequence:
+        - if:
+          - condition: template
+            value_template: '{{ resolved_selected_endpoint.media_entity | default('''',
+              true) | string | trim == '''' }}'
+          then:
+          - action: persistent_notification.create
+            data:
+              title: ASTV - Select Execution Engine
+              message: No valid HA Media Player endpoint was supplied for execution
+                method 'ha_mplayer' in area '{{ target_area }}'.
+          - stop: No valid HA Media Player endpoint supplied
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ media_record is defined }}'
+          then:
+          - action: script.astv_ha_mplayer_engine
+            data:
+              request: '{{ request }}'
+              selected_endpoint: '{{ resolved_selected_endpoint }}'
+              execution_method: '{{ execution_method }}'
+              media_record: '{{ media_record }}'
+          else:
+          - action: script.astv_ha_mplayer_engine
+            data:
+              request: '{{ request }}'
+              selected_endpoint: '{{ resolved_selected_endpoint }}'
+      - alias: Google Home Device
+        conditions:
+        - condition: template
+          value_template: '{{ resolved_execution_method == ''g_home_device'' }}'
+        sequence:
+        - if:
+          - condition: template
+            value_template: '{{ resolved_selected_endpoint.phrase | default('''', true)
+              | string | trim == '''' }}'
+          then:
+          - action: persistent_notification.create
+            data:
+              title: ASTV - Select Execution Engine
+              message: No valid Google Home Device endpoint was supplied for execution
+                method 'g_home_device' in area '{{ target_area }}'.
+          - stop: No valid Google Home Device endpoint supplied
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ media_record is defined }}'
+          then:
+          - action: script.astv_g_home_device_engine
+            data:
+              request: '{{ request }}'
+              selected_endpoint: '{{ resolved_selected_endpoint }}'
+              execution_method: '{{ execution_method }}'
+              media_record: '{{ media_record }}'
+          else:
+          - action: script.astv_g_home_device_engine
+            data:
+              request: '{{ request }}'
+              selected_endpoint: '{{ resolved_selected_endpoint }}'
+      - alias: Google Automation
+        conditions:
+        - condition: template
+          value_template: '{{ resolved_execution_method == ''g_automation'' }}'
+        sequence:
+        - if:
+          - condition: template
+            value_template: '{{ request.routine | default('''', true) | string | trim
+              == '''' }}'
+          then:
+          - action: persistent_notification.create
+            data:
+              title: ASTV - Select Execution Engine
+              message: No valid routine was supplied for execution method 'g_automation'
+                in area '{{ target_area }}'.
+          - stop: No valid routine supplied
+            error: true
+        - if:
+          - condition: template
+            value_template: '{{ resolved_target_area == '''' }}'
+          then:
+          - action: persistent_notification.create
+            data:
+              title: ASTV - Select Execution Engine
+              message: No valid target area was supplied for execution method 'g_automation'
+                and routine '{{ request.routine }}'.
+          - stop: No valid target area supplied
+            error: true
+        - action: script.astv_g_automation_engine
+          data:
+            request: '{{ request }}'
+            target_area: '{{ target_area }}'
+      default:
+      - action: persistent_notification.create
+        data:
+          title: ASTV - Select Execution Engine
+          message: Unsupported or blank execution method '{{ resolved_execution_method
+            }}' for area '{{ target_area }}'.
+      - stop: Unsupported or blank execution method
+        error: true
+  astv_intent_engine_routine:
+    alias: 'ASTV - Intent Engine: Routine'
+    description: Prepares the shared Phase 2 execution interface for a Routine request
+      without resolving or executing it.
+    mode: parallel
+    max: 10
+    fields:
+      request:
+        name: Request
+        description: The complete ASTV request object.
+        required: true
+        selector:
+          object:
+      target_area:
+        name: Target Area
+        description: The resolved ASTV target area.
+        required: true
+        selector:
+          text:
+    sequence:
+    - variables:
+        routine_intent_response:
+          request: '{{ request }}'
+          target_area: '{{ target_area }}'
+          execution_method: g_automation
+          selected_endpoint: {}
+    - stop: Routine intent prepared
+      response_variable: routine_intent_response

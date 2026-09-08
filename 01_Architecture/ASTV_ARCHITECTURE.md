@@ -67,7 +67,7 @@ An external NFC read is delivered over MQTT to one of the configured Home Assist
 - `sensor.pi_nfc_02_last_uid`
 - `sensor.pi_nfc_99_last_uid`
 
-A state change on either sensor is the entry event consumed by ASTV - Tag Listener.
+A state change on either sensor is evaluated by ASTV - Tag Listener. Only a valid UID-bearing new state enters the ASTV pipeline; new states that are unknown, unavailable or blank are ignored before UID Gateway invocation.
 
 ### ASTV - Tag Listener
 
@@ -75,7 +75,8 @@ A state change on either sensor is the entry event consumed by ASTV - Tag Listen
 - Sources:
   - `sensor.pi_nfc_02_last_uid`
   - `sensor.pi_nfc_99_last_uid`
-- Calls `script.astv_uid_gateway` with:
+- Ignores a state change when the new state is unknown, unavailable or blank.
+- Calls `script.astv_uid_gateway` only when the new state passes that validity guard, with:
   - `uid`
   - `trigger_entity`
 
@@ -611,7 +612,7 @@ bytes are the accepted current-production visual completed and reviewed under
 | Dependency | Type | Consumer or relationship |
 |---|---|---|
 | External NFC input | External input | Delivered over MQTT to the configured NFC reader sensors |
-| `sensor.pi_nfc_02_last_uid`, `sensor.pi_nfc_99_last_uid` | MQTT-fed Home Assistant sensors | State-change inputs consumed by ASTV - Tag Listener |
+| `sensor.pi_nfc_02_last_uid`, `sensor.pi_nfc_99_last_uid` | MQTT-fed Home Assistant sensors | Valid UID-bearing state-change inputs evaluated by ASTV - Tag Listener; unknown, unavailable or blank new states are ignored before UID Gateway |
 | `astv_tag_mapping.yaml` | Data source | Active Find Tag Record lookup |
 | `astv_intent_catalogue.yaml` | Data source | Find Intent Record lookup using `lookup_intent_id`; result `intent_record_response` |
 | `astv_area_endpoints2.yaml` | Data source | Find Area Domain Endpoints |

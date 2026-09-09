@@ -1,0 +1,485 @@
+script:
+  astv_resolver:
+    alias: ASTV - Resolver
+    mode: parallel
+    fields:
+      reader_entity:
+        name: Reader entity (last UID sensor)
+        selector:
+          entity:
+            domain: sensor
+      override_uid:
+        name: Override UID (optional)
+        selector:
+          text:
+      override_area_id:
+        name: Override area_id (optional)
+        selector:
+          text:
+    variables:
+      TAGS:
+        A9F236C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: custom_radio
+          title: BBC Radio 2
+          params:
+            content_type: station
+            content_id: bbc_radio_2
+        FD2637C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: url
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: https://media-ice.musicradio.com/ClassicFMMP3
+            icon_url: /local/radio-logos/Classic-FM.png
+            mime: audio/mp3
+        7AB06354E000:
+          intent: media.play_source
+          domain: audio
+          provider: radio_browser
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: media-source://radio_browser/bd1c441c-132a-4d48-a3f3-bdb386f4b09a
+            icon_url: /local/radio-logos/Classic-FM.png
+        A12345:
+          intent: media.play_source
+          domain: screen_cast
+          provider: plex
+          title: TEST TITLE
+          params:
+            content_type: movie
+            content_id: testing1
+            thumb_url: abcd
+        B12345:
+          intent: media.play_channel
+          domain: screen_tv
+          provider: bbc_iplayer
+          title: TEST TITLE
+          params:
+            content_type: channel
+            content_id: testing2
+            channel_key: abcd
+            ir_code: 101.0
+        C12345:
+          intent: media.device.control
+          domain: abcd
+          title: TESTING1
+          params:
+            action: 101.0
+      AREA_ENDPOINTS:
+        living_room:
+          audio:
+            media_entity: media_player.gnest_03
+            driver: TEST
+          screen_cast:
+            media_entity: media_player.chromecast_01
+            driver: TEST
+          tv:
+            media_entity: TEST2
+            driver: TEST3
+            profile: noddytv
+        kitchen:
+          audio:
+            media_entity: media_player.gnest_02
+            driver: TEST
+        martin_bedroom:
+          audio:
+            media_entity: media_player.gnest_01
+            driver: TEST
+        5fa17a3cccaf4af0a5daef18141375fd:
+          audio:
+            media_entity: media_player.kitchen_speaker
+            driver: TEST
+      uid: "{% if override_uid is defined and override_uid|length > 0 %}\n  {{ override_uid
+        }}\n{% else %}\n  {{ states(reader_entity) }}\n{% endif %}"
+      tag: '{{ TAGS.get(uid, {}) }}'
+      intent: '{{ tag.get(''intent'','''') }}'
+      provider: '{{ tag.get(''provider'','''') }}'
+      station_label: '{{ tag.get(''station'','''') }}'
+      p: '{{ tag.get(''params'', {}) }}'
+      tag_area_override: '{{ tag.get(''area_override'','''') }}'
+      derived_area_id: "{% if override_area_id is defined and override_area_id|length
+        > 0 %}\n  {{ override_area_id }}\n{% elif tag_area_override|length > 0 %}\n
+        \ {{ tag_area_override }}\n{% else %}\n  {{ area_id(reader_entity) }}\n{% endif
+        %}"
+      action_endpoints: '{{ AREA_ENDPOINTS.get(derived_area_id, {}) }}'
+      audio_entity: '{{ action_endpoints.get(''audio'','''') }}'
+      screen_entity: '{{ action_endpoints.get(''screen'','''') }}'
+      reader_area_id: '{{ area_id(reader_entity) }}'
+      feedback_endpoints: '{{ AREA_ENDPOINTS.get(reader_area_id, {}) }}'
+      feedback_audio_entity: '{{ feedback_endpoints.get(''audio'','''') }}'
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ uid|length > 0 and intent|length > 0 }}'
+        sequence:
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ feedback_audio_entity|length > 0 }}'
+            sequence:
+            - service: script.astv_sound_tag_feedback
+              data:
+                target_entity: '{{ feedback_audio_entity }}'
+                result: found
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ intent == ''audio.play_station'' and provider == ''custom_radio''
+                }}'
+            sequence:
+            - service: script.custom_radio_play_station
+              data:
+                target_entity: '{{ audio_entity }}'
+                station_id: '{{ p.get(''station_id'','''') }}'
+                station: '{{ station_label }}'
+          - conditions:
+            - condition: template
+              value_template: "{{ intent == 'audio.play_station'\n   and provider in
+                ['url','radio_browser','google_asst'] }}\n"
+            sequence:
+            - service: script.astv_action_audio_play_station
+              data:
+                target_entity: '{{ audio_entity }}'
+                provider: '{{ provider }}'
+                station: '{{ station_label }}'
+                media_id: '{{ p.get(''media_id'','''') }}'
+                url: '{{ p.get(''url'','''') }}'
+                mime: '{{ p.get(''mime'','''') }}'
+                asst_command: '{{ p.get(''asst_command'','''') }}'
+                station_id: '{{ p.get(''station_id'','''') }}'
+                icon_url: '{{ p.get(''icon_url'','''') }}'
+      default:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ feedback_audio_entity|length > 0 }}'
+          sequence:
+          - service: script.astv_sound_tag_feedback
+            data:
+              target_entity: '{{ feedback_audio_entity }}'
+              result: not_found
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver - Error
+          message: Tag not found or missing intent. UID='{{ uid }}' intent='{{ intent
+            }}'
+  astv_sound_tag_feedback:
+    alias: ASTV - Sound - Tag Feedback
+    mode: queued
+    fields:
+      target_entity:
+        name: Target media player
+        selector:
+          entity:
+            domain: media_player
+      result:
+        name: Result
+        description: '''found'' or ''not_found'''
+        selector:
+          select:
+            options:
+            - found
+            - not_found
+    variables:
+      result_final: '{{ (result or ''found'') | lower }}'
+      sound_media_id: "{% if result_final == 'not_found' %}\n  media-source://media_source/local/beep-negative.mp3\n{%
+        else %}\n  media-source://media_source/local/beep-positive.mp3\n{% endif %}"
+      sound_media_type: music
+      target_state: '{{ states(target_entity) if target_entity is not none else ''''
+        }}'
+      suppress_positive: "{% if result_final == 'found' and target_state == 'playing'
+        %}\n  true\n{% else %}\n  false\n{% endif %}"
+    sequence:
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ suppress_positive == ''true'' }}'
+        sequence: []
+      - conditions:
+        - condition: template
+          value_template: '{{ target_entity is not none and target_entity|length > 0
+            }}'
+        sequence:
+        - service: media_player.play_media
+          target:
+            entity_id: '{{ target_entity }}'
+          data:
+            media_content_id: '{{ sound_media_id }}'
+            media_content_type: '{{ sound_media_type }}'
+      default: []
+  astv_resolver_v2:
+    alias: ASTV - Resolver (v2)
+    mode: parallel
+    fields:
+      reader_entity:
+        name: Reader entity (last UID sensor)
+        selector:
+          entity:
+            domain: sensor
+    variables:
+      debug_enabled: '{{ is_state(''input_boolean.astv_debug_mode'', ''on'') }}'
+      TAGS:
+        A9F236C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: custom_radio
+          title: BBC Radio 2
+          params:
+            content_type: station
+            content_id: bbc_radio_2
+        FD2637C82A81:
+          intent: media.play_source
+          domain: audio
+          provider: url
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: https://media-ice.musicradio.com/ClassicFMMP3
+            icon_url: /local/radio-logos/Classic-FM.png
+            mime: audio/mp3
+        7AB06354E000:
+          intent: media.play_source
+          domain: audio
+          provider: radio_browser
+          title: Classic FM
+          params:
+            content_type: station
+            content_id: media-source://radio_browser/bd1c441c-132a-4d48-a3f3-bdb386f4b09a
+            icon_url: /local/radio-logos/Classic-FM.png
+        A12345:
+          intent: media.play_source
+          domain: screen_cast
+          provider: plex
+          title: TEST TITLE
+          params:
+            content_type: movie
+            content_id: testing1
+            thumb_url: abcd
+        B12345:
+          intent: media.play_channel
+          domain: screen_tv
+          provider: bbc_iplayer
+          title: TEST TITLE
+          params:
+            content_type: channel
+            content_id: testing2
+            channel_key: abcd
+            ir_code: 101.0
+        C12345:
+          intent: media.device.control
+          domain: abcd
+          title: TESTING1
+          params:
+            action: 101.0
+      AREA_ENDPOINTS:
+        living_room:
+          audio:
+            media_entity: media_player.gnest_03
+            driver: TEST
+          screen_cast:
+            media_entity: media_player.chromecast_01
+            driver: TEST
+          tv:
+            media_entity: TEST2
+            driver: TEST3
+            profile: noddytv
+        kitchen:
+          audio:
+            media_entity: media_player.gnest_02
+            driver: TEST
+        martin_bedroom:
+          audio:
+            media_entity: media_player.gnest_01
+            driver: TEST
+        5fa17a3cccaf4af0a5daef18141375fd:
+          audio:
+            media_entity: media_player.kitchen_speaker
+            driver: TEST
+      uid: '{{ states(reader_entity) }}'
+      tag: '{{ TAGS.get(uid, {}) }}'
+      intent: '{{ tag.get(''intent'','''') }}'
+      provider: '{{ tag.get(''provider'','''') }}'
+      title: '{{ tag.get(''title'','''') }}'
+      domain: '{{ tag.get(''domain'','''') }}'
+      p: '{{ tag.get(''params'', {}) }}'
+      tag_area_override: '{{ tag.get(''area_override'','''') }}'
+      derived_area_id: "{% if tag_area_override|length > 0 %}\n  {{ tag_area_override
+        }}\n{% else %}\n  {{ area_id(reader_entity) }}\n{% endif %}"
+      action_endpoints: '{{ AREA_ENDPOINTS.get(derived_area_id, {}) }}'
+      target_cfg: '{{ action_endpoints.get(domain, {}) }}'
+      target_entity: '{{ target_cfg.get(''media_entity'', '''') }}'
+      target_driver: '{{ target_cfg.get(''driver'', '''') }}'
+      target_profile: '{{ target_cfg.get(''profile'', '''') }}'
+      driver_script: "{% if target_driver|length > 0 %}\n  {{ 'script.' ~ target_driver
+        }}\n{% else %}\n  ''\n{% endif %}"
+      reader_area_id: '{{ area_id(reader_entity) }}'
+      feedback_endpoints: '{{ AREA_ENDPOINTS.get(reader_area_id, {}) }}'
+      feedback_audio_cfg: '{{ feedback_endpoints.get(''audio'', {}) }}'
+      feedback_audio_entity: '{{ feedback_audio_cfg.get(''media_entity'', '''') }}'
+    sequence:
+    - if:
+      - condition: template
+        value_template: '{{ debug_enabled }}'
+      then:
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver Debug
+          message: ASTV Resolver called. UID='{{ uid }}' intent='{{ intent }}' provider='{{
+            provider }}' title='{{ title }}' domain='{{ domain }}' reader_entity='{{
+            reader_entity }}' derived_area_id='{{ derived_area_id }}' reader_area_id='{{
+            reader_area_id }}' target_entity='{{ target_entity }}' target_driver='{{
+            target_driver }}' target_profile='{{ target_profile }}' driver_script='{{
+            driver_script }}' feedback_audio_entity='{{ feedback_audio_entity }}'
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ uid|length > 0 and intent|length > 0 }}'
+        sequence:
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: '{{ feedback_audio_entity|length > 0 }}'
+            sequence:
+            - service: script.astv_sound_tag_feedback
+              data:
+                target_entity: '{{ feedback_audio_entity }}'
+                result: found
+        - choose:
+          - conditions:
+            - condition: template
+              value_template: "{{ target_entity|length > 0\n   and driver_script|length
+                > 0 }}\n"
+            sequence:
+            - service: '{{ driver_script }}'
+              data:
+                area_id: '{{ derived_area_id }}'
+                reader_area_id: '{{ reader_area_id }}'
+                reader_entity: '{{ reader_entity }}'
+                intent: '{{ intent }}'
+                domain: '{{ domain }}'
+                target_entity: '{{ target_entity }}'
+                profile: '{{ target_profile }}'
+                uid: '{{ uid }}'
+                title: '{{ title }}'
+                provider: '{{ provider }}'
+                params: '{{ p }}'
+                debug: '{{ debug_enabled }}'
+          - conditions:
+            - condition: template
+              value_template: "{{ target_entity|length == 0\n   or driver_script|length
+                == 0 }}\n"
+            sequence:
+            - service: persistent_notification.create
+              data:
+                title: ASTV Resolver - Endpoint/Driver Missing
+                message: Resolver found tag but no valid endpoint/driver. UID='{{ uid
+                  }}' intent='{{ intent }}' domain='{{ domain }}' derived_area_id='{{
+                  derived_area_id }}' target_entity='{{ target_entity }}' target_driver='{{
+                  target_driver }}' driver_script='{{ driver_script }}'
+      default:
+      - choose:
+        - conditions:
+          - condition: template
+            value_template: '{{ feedback_audio_entity|length > 0 }}'
+          sequence:
+          - service: script.astv_sound_tag_feedback
+            data:
+              target_entity: '{{ feedback_audio_entity }}'
+              result: not_found
+      - service: persistent_notification.create
+        data:
+          title: ASTV Resolver - Error
+          message: Tag not found or missing intent. UID='{{ uid }}' intent='{{ intent
+            }}'
+  astv_handle_provider:
+    alias: 'ASTV - Fn: Handle Provider'
+    description: ''
+    mode: parallel
+    max: 10
+    fields:
+      request_object:
+        name: Request Object
+        description: The request object for the playback method selected.
+        required: true
+        selector:
+          object:
+      media_player:
+        name: Media Player
+        description: Runtime-resolved target media player, when required by the provider.
+        required: false
+        selector:
+          entity:
+            domain: media_player
+    sequence:
+    - variables:
+        request_provider: '{{ request_object.provider }}'
+        provider_data_object: '{{ request_object.data }}'
+    - choose:
+      - alias: Radio Browser
+        conditions:
+        - condition: template
+          value_template: '{{ request_provider == ''radio_browser'' }}'
+        sequence:
+        - action: script.astv_provider_radiobrowser
+          metadata: {}
+          data:
+            provider_data_object: '{{ provider_data_object }}'
+          response_variable: provider_payload_response
+        - stop: Provider Payload Response Received
+          response_variable: provider_payload_response
+      - alias: AdvMedia
+        conditions:
+        - condition: template
+          value_template: '{{ request_provider == ''advmedia'' }}'
+        sequence:
+        - action: script.astv_adapter_advmedia
+          data:
+            media_catalogue: '{{ provider_data_object.media_catalogue }}'
+            media_item_id: '{{ provider_data_object.media_item_id }}'
+            media_player: '{{ media_player }}'
+          response_variable: provider_payload_response
+        - stop: Provider Payload Response Received
+          response_variable: provider_payload_response
+      default:
+      - action: notify.persistent_notification
+        metadata: {}
+        data:
+          title: 'ASTV - Fn: Handle Provider'
+          message: 'No provider found for Request Provider: {{ request_provider }}'
+      - stop: No Provider Found
+        error: true
+  astv_provider_radiobrowser:
+    sequence:
+    - variables:
+        provider_payload_response:
+          media_content_id: '{{ provider_data_object.content_id }}'
+          media_content_type: '{{ provider_data_object.content_type }}'
+          extra:
+            title: '{{ provider_data_object.title }}'
+            thumb: '{{ provider_data_object.icon_url }}'
+            autoplay: true
+            stream_type: LIVE
+            metadata:
+              metadataType: 3
+              title: '{{ provider_data_object.title }}'
+              images:
+              - url: '{{ provider_data_object.icon_url }}'
+    - stop: Payload built
+      response_variable: provider_payload_response
+    alias: 'ASTV - Fn: Provider - Radio Browser'
+    description: ''
+    fields:
+      provider_data_object:
+        selector:
+          object:
+        name: Provider Data Object
+        required: true
+        description: The data object for the playback provider selected.
+    mode: parallel
+    max: 10

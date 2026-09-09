@@ -611,8 +611,7 @@ script:
     max: 10
   astv_intent_engine_media:
     alias: 'ASTV - Intent Engine: Media'
-    description: Resolves Media execution details through the legacy path or the installed
-      MediaCat compatibility path without executing it.
+    description: Resolves Media execution details through the normalized MediaCat path without executing it.
     fields:
       request:
         selector:
@@ -631,7 +630,7 @@ script:
         catalogue_id: '{{ request.params.catalogue_id | default('''', true) | string
           | trim }}'
         item_id: '{{ request.params.item_id | default('''', true) | string | trim }}'
-    - alias: Select Media reference path
+    - alias: Validate normalized MediaCat reference
       choose:
       - alias: Incomplete MediaCat reference
         conditions:
@@ -651,48 +650,22 @@ script:
               item_id: {{ item_id if item_id != '''' else ''(blank)'' }}'
         - stop: Incomplete MediaCat reference
           error: true
-      - alias: Normalized MediaCat reference
+      - alias: Missing MediaCat reference
         conditions:
         - condition: template
-          value_template: '{{ catalogue_id != '''' and item_id != '''' }}'
+          value_template: '{{ catalogue_id == '''' and item_id == '''' }}'
         sequence:
-        - action: curated_media.resolve_media_record
+        - action: persistent_notification.create
           data:
-            catalogue_id: '{{ catalogue_id }}'
-            item_id: '{{ item_id }}'
-          response_variable: media_record_response
-        - action: script.astv_find_area_domain_endpoints
-          metadata: {}
-          data:
-            domain: '{{ request.params.output.domain }}'
-            area: '{{ target_area }}'
-          response_variable: area_domain_response
-        - action: script.astv_resolve_playback_method
-          metadata: {}
-          data:
-            preferences: '{{ area_domain_response.preference }}'
-            available_sources: '{{ media_record_response.execution_methods }}'
-          response_variable: playback_method_response
-        - action: script.astv_select_area_playback_endpoint
-          metadata: {}
-          data:
-            area_playback_domain: '{{ area_domain_response }}'
-            playback_method: '{{ playback_method_response.selected_source }}'
-          response_variable: area_playback_endpoint_response
-        - variables:
-            execution_method: '{{ area_playback_endpoint_response.keys() | first | default('''',
-              true) }}'
-            selected_endpoint: '{{ area_playback_endpoint_response.get(area_playback_endpoint_response.keys()
-              | first, {}) }}'
-        - variables:
-            media_intent_response:
-              request: '{{ request }}'
-              target_area: '{{ target_area }}'
-              execution_method: '{{ execution_method }}'
-              selected_endpoint: '{{ selected_endpoint }}'
-              media_record: '{{ media_record_response }}'
-        - stop: Media intent prepared from MediaCat
-          response_variable: media_intent_response
+            title: Missing MediaCat Reference
+            message: 'Media intent ''{{ request.title | default(''(untitled)'', true) }}'' supplied no MediaCat catalogue_id/item_id.'
+        - stop: Missing MediaCat reference
+          error: true
+    - action: curated_media.resolve_media_record
+      data:
+        catalogue_id: '{{ catalogue_id }}'
+        item_id: '{{ item_id }}'
+      response_variable: media_record_response
     - action: script.astv_find_area_domain_endpoints
       metadata: {}
       data:
@@ -703,7 +676,7 @@ script:
       metadata: {}
       data:
         preferences: '{{ area_domain_response.preference }}'
-        available_sources: '{{ request.params.sources }}'
+        available_sources: '{{ media_record_response.execution_methods }}'
       response_variable: playback_method_response
     - action: script.astv_select_area_playback_endpoint
       metadata: {}
@@ -722,7 +695,8 @@ script:
           target_area: '{{ target_area }}'
           execution_method: '{{ execution_method }}'
           selected_endpoint: '{{ selected_endpoint }}'
-    - stop: Media intent prepared
+          media_record: '{{ media_record_response }}'
+    - stop: Media intent prepared from MediaCat
       response_variable: media_intent_response
     mode: parallel
     max: 10
@@ -816,7 +790,7 @@ script:
     max: 10
   astv_ha_mplayer_engine:
     alias: ASTV - HA Media Player Engine
-    description: ''
+    description: Executes normalized MediaCat/AdvMedia playback through the selected Home Assistant media player.
     mode: parallel
     max: 10
     fields:
@@ -832,54 +806,25 @@ script:
           object:
       execution_method:
         name: Execution Method
-        description: The ASTV-selected execution method carried for normalized media
-          context.
-        required: false
+        description: The ASTV-selected execution method carried for normalized media context.
+        required: true
         selector:
           text:
       media_record:
         name: Media Record
-        description: The complete normalized MediaCat returned record carried unchanged
-          when supplied.
-        required: false
+        description: The complete normalized MediaCat returned record carried unchanged.
+        required: true
         selector:
           object:
     sequence:
     - variables:
         media_player_entity: '{{ selected_endpoint.media_entity }}'
-        normalized_method_supplied: '{{ execution_method is defined }}'
-        normalized_record_supplied: '{{ media_record is defined }}'
-    - choose:
-      - alias: Normalized MediaCat context
-        conditions:
-        - condition: template
-          value_template: '{{ normalized_method_supplied and normalized_record_supplied
-            }}'
-        sequence:
-        - action: script.astv_adapter_advmedia
-          data:
-            media_record: '{{ media_record }}'
-            selected_execution_method: '{{ execution_method }}'
-            media_player: '{{ media_player_entity }}'
-          response_variable: provider_payload_response
-      - alias: Deployed legacy provider context
-        conditions:
-        - condition: template
-          value_template: '{{ not normalized_method_supplied and not normalized_record_supplied
-            }}'
-        sequence:
-        - variables:
-            ha_mplayer_request_object: '{{ request.params.sources.ha_mplayer }}'
-        - action: script.astv_handle_provider
-          data:
-            request_object: '{{ ha_mplayer_request_object }}'
-            media_player: '{{ media_player_entity }}'
-          enabled: true
-          response_variable: provider_payload_response
-      default:
-      - stop: 'Incomplete normalized HA Media Player handoff: media_record and execution_method
-          must be supplied together'
-        error: true
+    - action: script.astv_adapter_advmedia
+      data:
+        media_record: '{{ media_record }}'
+        selected_execution_method: '{{ execution_method }}'
+        media_player: '{{ media_player_entity }}'
+      response_variable: provider_payload_response
     - action: media_player.play_media
       target:
         entity_id: '{{ media_player_entity }}'
@@ -1491,19 +1436,16 @@ script:
             error: true
         - if:
           - condition: template
-            value_template: '{{ media_record is defined }}'
+            value_template: '{{ media_record is not defined }}'
           then:
-          - action: script.astv_ha_mplayer_engine
-            data:
-              request: '{{ request }}'
-              selected_endpoint: '{{ resolved_selected_endpoint }}'
-              execution_method: '{{ execution_method }}'
-              media_record: '{{ media_record }}'
-          else:
-          - action: script.astv_ha_mplayer_engine
-            data:
-              request: '{{ request }}'
-              selected_endpoint: '{{ resolved_selected_endpoint }}'
+          - stop: HA Media Player execution requires normalized media_record context
+            error: true
+        - action: script.astv_ha_mplayer_engine
+          data:
+            request: '{{ request }}'
+            selected_endpoint: '{{ resolved_selected_endpoint }}'
+            execution_method: '{{ execution_method }}'
+            media_record: '{{ media_record }}'
       - alias: Google Home Device
         conditions:
         - condition: template
@@ -1523,19 +1465,16 @@ script:
             error: true
         - if:
           - condition: template
-            value_template: '{{ media_record is defined }}'
+            value_template: '{{ media_record is not defined }}'
           then:
-          - action: script.astv_g_home_device_engine
-            data:
-              request: '{{ request }}'
-              selected_endpoint: '{{ resolved_selected_endpoint }}'
-              execution_method: '{{ execution_method }}'
-              media_record: '{{ media_record }}'
-          else:
-          - action: script.astv_g_home_device_engine
-            data:
-              request: '{{ request }}'
-              selected_endpoint: '{{ resolved_selected_endpoint }}'
+          - stop: Google Home Device execution requires normalized media_record context
+            error: true
+        - action: script.astv_g_home_device_engine
+          data:
+            request: '{{ request }}'
+            selected_endpoint: '{{ resolved_selected_endpoint }}'
+            execution_method: '{{ execution_method }}'
+            media_record: '{{ media_record }}'
       - alias: Google Automation
         conditions:
         - condition: template

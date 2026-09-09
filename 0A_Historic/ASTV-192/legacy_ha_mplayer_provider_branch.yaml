@@ -1,0 +1,17 @@
+# Non-runtime reference extracted from astv_ha_mplayer_engine before ASTV-192 simplification.
+# Historical/reference only; not loaded by Home Assistant.
+
+legacy_ha_mplayer_provider_branch:
+  alias: Deployed legacy provider context
+  conditions:
+  - condition: template
+    value_template: '{{ not normalized_method_supplied and not normalized_record_supplied }}'
+  sequence:
+  - variables:
+      ha_mplayer_request_object: '{{ request.params.sources.ha_mplayer }}'
+  - action: script.astv_handle_provider
+    data:
+      request_object: '{{ ha_mplayer_request_object }}'
+      media_player: '{{ media_player_entity }}'
+    enabled: true
+    response_variable: provider_payload_response

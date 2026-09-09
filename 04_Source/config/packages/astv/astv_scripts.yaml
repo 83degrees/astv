@@ -962,9 +962,8 @@ script:
       response_variable: payload_response
   astv_g_home_device_engine:
     alias: ASTV - Google Home Device Engine
-    description: Executes an ASTV request through a Google Home device endpoint using
-      either deployed legacy request data or the selected normalized MediaCat assistant
-      source.
+    description: Executes the selected normalized MediaCat assistant source through
+      a Google Home device endpoint.
     mode: parallel
     max: 10
     fields:
@@ -984,116 +983,91 @@ script:
         name: Execution Method
         description: The ASTV-selected execution method carried for normalized media
           context.
-        required: false
+        required: true
         selector:
           text:
       media_record:
         name: Media Record
-        description: The complete normalized MediaCat returned record carried unchanged
-          when supplied.
-        required: false
+        description: The complete normalized MediaCat returned record carried unchanged.
+        required: true
         selector:
           object:
     sequence:
+    - if:
+      - condition: template
+        value_template: '{{ execution_method is not defined or media_record is not defined }}'
+      then:
+      - stop: Google Home Device execution requires normalized execution_method and media_record context
+        error: true
     - variables:
-        normalized_method_supplied: '{{ execution_method is defined }}'
-        normalized_record_supplied: '{{ media_record is defined }}'
-    - choose:
-      - alias: Normalized MediaCat context
-        conditions:
-        - condition: template
-          value_template: '{{ normalized_method_supplied and normalized_record_supplied
-            }}'
-        sequence:
-        - variables:
-            normalized_execution_methods: '{{ media_record.execution_methods | default({},
-              true) }}'
-        - if:
-          - condition: template
-            value_template: '{{ normalized_execution_methods is not mapping or execution_method
-              not in normalized_execution_methods }}'
-          then:
-          - stop: Selected execution method is absent from the normalized media record
-            error: true
-        - variables:
-            selected_execution_data: '{{ normalized_execution_methods[execution_method]
-              }}'
-        - if:
-          - condition: template
-            value_template: '{{ selected_execution_data is not mapping or selected_execution_data.source
-              is not defined or selected_execution_data.source is not mapping }}'
-          then:
-          - stop: Selected normalized execution method has no assistant source
-            error: true
-        - variables:
-            assistant_source: '{{ selected_execution_data.source }}'
-            endpoint_phrase: '{{ selected_endpoint.phrase | default('''', true) }}'
-        - if:
-          - condition: template
-            value_template: '{{ assistant_source.source_type | default('''', true) |
-              string | trim != ''assistant_command'' }}'
-          then:
-          - stop: Selected normalized source is not assistant_command
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ assistant_source.provider | default('''', true) | string
-              | trim != ''google_assistant'' }}'
-          then:
-          - stop: Unsupported normalized assistant provider
-            error: true
-        - variables:
-            normalized_command: '{{ assistant_source.command | default('''', true) |
-              string | trim }}'
-            normalized_append_target: '{{ assistant_source.append_target | bool }}'
-            normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
-              string | trim }}'
-        - if:
-          - condition: template
-            value_template: '{{ normalized_command == '''' }}'
-          then:
-          - stop: Normalized Google Assistant command is missing or blank
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ normalized_append_target and normalized_endpoint_phrase
-              == '''' }}'
-          then:
-          - stop: Normalized Google Assistant command requires a usable endpoint phrase
-            error: true
-        - action: script.astv_provider_g_assist
-          data:
-            assistant_source: '{{ assistant_source }}'
-            endpoint_phrase: '{{ endpoint_phrase }}'
-          response_variable: provider_command_response
-        - variables:
-            normalized_provider_command: '{{ (provider_command_response | default({},
-              true)).get(''command'', '''') | string | trim }}'
-        - if:
-          - condition: template
-            value_template: '{{ normalized_provider_command == '''' }}'
-          then:
-          - stop: Normalized Google Assistant provider returned no usable command
-            error: true
-      - alias: Deployed legacy request context
-        conditions:
-        - condition: template
-          value_template: '{{ not normalized_method_supplied and not normalized_record_supplied
-            }}'
-        sequence:
-        - variables:
-            request_intent: '{{ request.intent }}'
-            endpoint_phrase: '{{ selected_endpoint.phrase }}'
-            g_home_device_request_object: '{{ request.params.sources.g_home_device }}'
-        - action: script.astv_provider_g_assist
-          data:
-            intent: '{{ request_intent }}'
-            request_object: '{{ g_home_device_request_object }}'
-            endpoint_phrase: '{{ endpoint_phrase }}'
-          response_variable: provider_command_response
-      default:
-      - stop: 'Incomplete normalized Google Home Device handoff: media_record and execution_method
-          must be supplied together'
+        normalized_execution_methods: '{{ media_record.execution_methods | default({},
+          true) }}'
+    - if:
+      - condition: template
+        value_template: '{{ normalized_execution_methods is not mapping or execution_method
+          not in normalized_execution_methods }}'
+      then:
+      - stop: Selected execution method is absent from the normalized media record
+        error: true
+    - variables:
+        selected_execution_data: '{{ normalized_execution_methods[execution_method]
+          }}'
+    - if:
+      - condition: template
+        value_template: '{{ selected_execution_data is not mapping or selected_execution_data.source
+          is not defined or selected_execution_data.source is not mapping }}'
+      then:
+      - stop: Selected normalized execution method has no assistant source
+        error: true
+    - variables:
+        assistant_source: '{{ selected_execution_data.source }}'
+        endpoint_phrase: '{{ selected_endpoint.phrase | default('''', true) }}'
+    - if:
+      - condition: template
+        value_template: '{{ assistant_source.source_type | default('''', true) |
+          string | trim != ''assistant_command'' }}'
+      then:
+      - stop: Selected normalized source is not assistant_command
+        error: true
+    - if:
+      - condition: template
+        value_template: '{{ assistant_source.provider | default('''', true) | string
+          | trim != ''google_assistant'' }}'
+      then:
+      - stop: Unsupported normalized assistant provider
+        error: true
+    - variables:
+        normalized_command: '{{ assistant_source.command | default('''', true) |
+          string | trim }}'
+        normalized_append_target: '{{ assistant_source.append_target | bool }}'
+        normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
+          string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ normalized_command == '''' }}'
+      then:
+      - stop: Normalized Google Assistant command is missing or blank
+        error: true
+    - if:
+      - condition: template
+        value_template: '{{ normalized_append_target and normalized_endpoint_phrase
+          == '''' }}'
+      then:
+      - stop: Normalized Google Assistant command requires a usable endpoint phrase
+        error: true
+    - action: script.astv_provider_g_assist
+      data:
+        assistant_source: '{{ assistant_source }}'
+        endpoint_phrase: '{{ endpoint_phrase }}'
+      response_variable: provider_command_response
+    - variables:
+        normalized_provider_command: '{{ (provider_command_response | default({},
+          true)).get(''command'', '''') | string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ normalized_provider_command == '''' }}'
+      then:
+      - stop: Normalized Google Assistant provider returned no usable command
         error: true
     - action: google_assistant_sdk.send_text_command
       metadata: {}
@@ -1101,28 +1075,15 @@ script:
         command: '{{ provider_command_response.command }}'
   astv_provider_g_assist:
     alias: 'ASTV - Provider: Google Assist'
-    description: Builds a Google Assistant command from either the deployed legacy request
-      context or a normalized MediaCat assistant source.
+    description: Builds a Google Assistant command from a normalized MediaCat assistant
+      source.
     mode: parallel
     max: 10
     fields:
-      intent:
-        name: Intent
-        description: The ASTV intent used by the deployed legacy request context.
-        required: false
-        selector:
-          text:
-      request_object:
-        name: Request Object
-        description: The g_home_device source request object used by the deployed legacy
-          context.
-        required: false
-        selector:
-          object:
       assistant_source:
         name: Assistant Source
         description: The selected normalized MediaCat assistant_command source.
-        required: false
+        required: true
         selector:
           object:
       endpoint_phrase:
@@ -1132,78 +1093,39 @@ script:
         selector:
           text:
     sequence:
-    - variables:
-        legacy_intent_supplied: '{{ intent is defined }}'
-        legacy_request_supplied: '{{ request_object is defined }}'
-        normalized_source_supplied: '{{ assistant_source is defined }}'
-    - choose:
-      - alias: Deployed legacy provider context
-        conditions:
-        - condition: template
-          value_template: '{{ legacy_intent_supplied and legacy_request_supplied and
-            not normalized_source_supplied }}'
-        sequence:
-        - variables:
-            provider_data_object: '{{ request_object.data }}'
-        - choose:
-          - alias: Media command
-            conditions:
-            - condition: template
-              value_template: '{{ intent == ''media.play_source'' }}'
-            sequence:
-            - action: script.astv_cmd_builder_media
-              data:
-                phrase: '{{ provider_data_object.phrase }}'
-                append_target: '{{ provider_data_object.get(''append_target'', true)
-                  }}'
-                endpoint_phrase: '{{ endpoint_phrase }}'
-              response_variable: command_response
-            - stop: Google Assistant command built
-              response_variable: command_response
-          default:
-          - action: notify.persistent_notification
-            data:
-              title: 'ASTV - Provider: Google Assist'
-              message: 'No Google Assistant command builder is available for intent:
-                {{ intent }}'
-          - stop: Unsupported Google Assistant intent
-            error: true
-      - alias: Normalized assistant source
-        conditions:
-        - condition: template
-          value_template: '{{ normalized_source_supplied and not legacy_intent_supplied
-            and not legacy_request_supplied }}'
-        sequence:
-        - variables:
-            normalized_command: '{{ assistant_source.command | default('''', true) |
-              string | trim }}'
-            normalized_append_target: '{{ assistant_source.append_target | bool }}'
-            normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
-              string | trim }}'
-        - if:
-          - condition: template
-            value_template: '{{ normalized_command == '''' }}'
-          then:
-          - stop: Normalized Google Assistant command is missing or blank
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ normalized_append_target and normalized_endpoint_phrase
-              == '''' }}'
-          then:
-          - stop: Normalized Google Assistant command requires a usable endpoint phrase
-            error: true
-        - action: script.astv_cmd_builder_media
-          data:
-            phrase: '{{ assistant_source.command }}'
-            append_target: '{{ assistant_source.append_target }}'
-            endpoint_phrase: '{{ endpoint_phrase }}'
-          response_variable: command_response
-        - stop: Google Assistant command built
-          response_variable: command_response
-      default:
-      - stop: Incomplete or mixed Google Assistant provider context
+    - if:
+      - condition: template
+        value_template: '{{ assistant_source is not defined }}'
+      then:
+      - stop: Google Assistant provider requires normalized assistant_source context
         error: true
+    - variables:
+        normalized_command: '{{ assistant_source.command | default('''', true) |
+          string | trim }}'
+        normalized_append_target: '{{ assistant_source.append_target | bool }}'
+        normalized_endpoint_phrase: '{{ endpoint_phrase | default('''', true) |
+          string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ normalized_command == '''' }}'
+      then:
+      - stop: Normalized Google Assistant command is missing or blank
+        error: true
+    - if:
+      - condition: template
+        value_template: '{{ normalized_append_target and normalized_endpoint_phrase
+          == '''' }}'
+      then:
+      - stop: Normalized Google Assistant command requires a usable endpoint phrase
+        error: true
+    - action: script.astv_cmd_builder_media
+      data:
+        phrase: '{{ assistant_source.command }}'
+        append_target: '{{ assistant_source.append_target }}'
+        endpoint_phrase: '{{ endpoint_phrase }}'
+      response_variable: command_response
+    - stop: Google Assistant command built
+      response_variable: command_response
   astv_cmd_builder_media:
     alias: 'ASTV - Command Builder: Media'
     description: Builds a Google Assistant media command from the supplied phrase and

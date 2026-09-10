@@ -190,7 +190,7 @@ script:
       - stop: Invalid tag record
         error: false
     - variables:
-        resolved_intent_id: '{{ tag_record_response.intent_id | string | trim }}'
+        tag_intent_id: '{{ tag_record_response.intent_id | string | trim }}'
         tag_area_override: '{{ tag_record_response.area_override | default('''', true)
           | string | trim }}'
     - action: persistent_notification.create
@@ -200,14 +200,14 @@ script:
 
           Trigger Entity: {{ trigger_entity }}
 
-          Intent ID: {{ resolved_intent_id }}
+          Intent ID: {{ tag_intent_id }}
 
           Area Override: {{ tag_area_override if tag_area_override != '''' else ''(none)''
           }}'
     - action: script.astv_intent_gateway
       data:
-        intent_id: '{{ resolved_intent_id }}'
-        trigger_area_override: '{{ tag_area_override }}'
+        intent_id: '{{ tag_intent_id }}'
+        input_area_override: '{{ tag_area_override }}'
         trigger_entity: '{{ trigger_entity }}'
     mode: parallel
     max: 10
@@ -306,11 +306,11 @@ script:
     alias: 'ASTV - Fn: Resolve Area'
     description: ''
     fields:
-      trigger_area_override:
+      input_area_override:
         selector:
           text:
-        name: Trigger Area Override
-        description: Optional area override supplied by the trigger context.
+        name: Input Area Override
+        description: Optional area override supplied by the calling context.
       intent_area_override:
         selector:
           text:
@@ -322,16 +322,22 @@ script:
         name: Trigger Entity
         description: Optional entity whose Home Assistant area is used as the fallback.
     sequence:
-    - variables:
-        trigger_override: '{{ trigger_area_override | default('''', true) | string |
-          trim }}'
-        intent_override: '{{ intent_area_override | default('''', true) | string | trim
-          }}'
-        trigger_area: '{{ area_id(trigger_entity) | default('''', true) if trigger_entity
-          is defined and trigger_entity | string | trim != '''' else '''' }}'
-    - variables:
-        target_area: '{{ trigger_override if trigger_override != '''' else intent_override
-          if intent_override != '''' else trigger_area | default('''', true) }}'
+    - choose:
+      - conditions:
+        - condition: template
+          value_template: '{{ input_area_override | default('''', true) | string | trim != '''' }}'
+        sequence:
+        - variables:
+            target_area: '{{ input_area_override | string | trim }}'
+      - conditions:
+        - condition: template
+          value_template: '{{ intent_area_override | default('''', true) | string | trim != '''' }}'
+        sequence:
+        - variables:
+            target_area: '{{ intent_area_override | string | trim }}'
+      default:
+      - variables:
+          target_area: '{{ area_id(trigger_entity) | default('''', true) }}'
     - variables:
         area_response:
           target_area: '{{ target_area | default('''', true) }}'
@@ -755,9 +761,9 @@ script:
         required: true
         selector:
           text:
-      trigger_area_override:
-        name: Trigger Area Override
-        description: Optional area override supplied by the trigger context.
+      input_area_override:
+        name: Input Area Override
+        description: Optional area override supplied by the calling context.
         selector:
           text:
       trigger_entity:
@@ -785,7 +791,7 @@ script:
         error: false
     - action: script.astv_resolve_area
       data:
-        trigger_area_override: '{{ trigger_area_override | default('''', true) }}'
+        input_area_override: '{{ input_area_override | default('''', true) }}'
         intent_area_override: '{{ intent_record_response.area_override | default('''',
           true) }}'
         trigger_entity: '{{ trigger_entity | default('''', true) }}'

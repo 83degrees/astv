@@ -321,6 +321,7 @@ script:
           entity:
         name: Trigger Entity
         description: Optional entity whose Home Assistant area is used as the fallback.
+        default: ''
     sequence:
     - choose:
       - conditions:

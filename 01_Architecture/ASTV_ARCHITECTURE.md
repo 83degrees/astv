@@ -137,7 +137,7 @@ For a resolved record, Intent Gateway separately calls `script.astv_resolve_area
 
 It captures `area_response`, derives `target_area`, and stops with a persistent notification if the area is unresolved. After successful resolution it calls `script.astv_select_intent_engine` with only:
 
-- `request` (the complete `intent_record_response`)
+- `intent_record` (the complete `intent_record_response`)
 - `target_area`
 
 `intent_id`, `input_area_override`, and `trigger_entity` are not passed downstream. Find Intent Record and Resolve Area are independent children of Intent Gateway; neither calls the other.
@@ -170,7 +170,7 @@ The function normalizes the supplied ID using string conversion, trimming, and l
 
 - Entity: `script.astv_select_intent_engine`
 - Inputs:
-  - `request`
+  - `intent_record`
   - `target_area`
 - Exclusive decision: `Intent?`
 - Current outcomes:
@@ -186,21 +186,21 @@ unknown intent stops visibly inside the choice.
 
 - Entity: `script.astv_intent_engine_media`
 - Inputs:
-  - `request`
+  - `intent_record`
   - `target_area`
 - Dispatches directly to `script.astv_select_execution_engine` with:
-  - `intent_context.record`: the unchanged `request`
+  - `intent_context.record`: the unchanged `intent_record`
   - `intent_context.data.media_record`: the complete unchanged normalized MediaCat response
   - `target_context.area`: the unchanged `target_area`
   - `target_context.endpoint`: the selected area playback endpoint
   - `execution_context.engine`: the resolved playback method
 
 The live definition reads `catalogue_id`, `item_id`, and `output.domain`
-directly from `request.params`. It normalizes the two MediaCat identifiers for
+directly from `intent_record.params`. It normalizes the two MediaCat identifiers for
 branch selection using string conversion, defaulting, and trimming:
 
 - when neither identifier is non-blank, it enters a retained pre-cutover branch
-  that reads `request.params.sources` and returns the older four-field media
+  that reads `intent_record.params.sources` and returns the older four-field media
   response without `media_record`;
 - when exactly one identifier is non-blank, it creates one persistent
   notification identifying the incomplete reference and stops with
@@ -218,7 +218,7 @@ those records.
 
 The current normalized branch calls the three sibling support functions below
 after its single MediaCat lookup. The retained pre-cutover branch calls the same
-functions against `request.params.sources`. Their execution order does not imply
+functions against `intent_record.params.sources`. Their execution order does not imply
 calls between the functions.
 
 #### ASTV - Fn: Find Area Domain Endpoints
@@ -255,7 +255,7 @@ Intent Engine: Media derives two separately named values from the one-key
 - `selected_endpoint` from the value for that key
 
 The current normalized branch places those values together with the unchanged
-`request`, `target_area`, and complete unchanged `media_record_response` into
+`intent_record`, `target_area`, and complete unchanged `media_record_response` into
 the fixed three-context interface and calls Select Execution Engine directly.
 It does not flatten the record, remove unselected methods, or add an internal
 `selected_execution_method`.
@@ -264,10 +264,10 @@ It does not flatten the record, remove unselected methods, or add an internal
 
 - Entity: `script.astv_intent_engine_routine`
 - Inputs:
-  - `request`
+  - `intent_record`
   - `target_area`
 - Dispatches directly to `script.astv_select_execution_engine` with:
-  - `intent_context.record`: the unchanged `request`
+  - `intent_context.record`: the unchanged `intent_record`
   - `intent_context.data: {}`
   - `target_context.area`: the unchanged `target_area`
   - `target_context.endpoint: {}`
@@ -620,6 +620,7 @@ Exact verified names must be preserved. In particular:
 
 - `lookup_intent_id`
 - `intent_record_response`
+- `intent_record`
 - `request`
 - `execution_method`
 - `selected_endpoint`

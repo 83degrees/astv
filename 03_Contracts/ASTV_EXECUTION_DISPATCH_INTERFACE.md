@@ -52,7 +52,7 @@ The dispatcher returns no common response.
 
 | Existing value | Dispatch field |
 | --- | --- |
-| `request` | `intent_context.record` |
+| `intent_record` | `intent_context.record` |
 | `media_record_response` | `intent_context.data.media_record` |
 | `target_area` | `target_context.area` |
 | `selected_endpoint` | `target_context.endpoint` |
@@ -68,7 +68,7 @@ selected method into that record.
 
 | Existing value | Dispatch field |
 | --- | --- |
-| `request` | `intent_context.record` |
+| `intent_record` | `intent_context.record` |
 | no family-specific data | `intent_context.data: {}` |
 | `target_area` | `target_context.area` |
 | no selected endpoint | `target_context.endpoint: {}` |

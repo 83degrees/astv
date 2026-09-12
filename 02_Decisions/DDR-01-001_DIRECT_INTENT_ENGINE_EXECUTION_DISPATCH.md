@@ -88,8 +88,8 @@ interfaces and validation behaviour.
   producers and the sole consumer change atomically.
 - Downstream engines continue to use their existing input names, so Select
   Execution Engine temporarily owns the adapter mappings.
-- The upstream `request` and `target_area` interface remains unchanged pending
-  separately governed work.
+- The upstream intent-record input was subsequently renamed from `request` to
+  `intent_record` under ASTV-203; `target_area` remains unchanged.
 
 ## Source Linear issue
 

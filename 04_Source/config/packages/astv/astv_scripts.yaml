@@ -78,12 +78,12 @@ script:
     description: Selects one Phase 2 intent engine, which owns preparation and execution
       dispatch for its intent family.
     fields:
-      request:
+      intent_record:
         selector:
           object:
-        name: Request
+        name: Intent Record
         required: true
-        description: The UID object found for the scanned UID.
+        description: The resolved ASTV intent record.
       target_area:
         selector:
           text:
@@ -92,7 +92,7 @@ script:
         description: The area resolved for this ASTV request.
     sequence:
     - variables:
-        intent: '{{ request.intent }}'
+        intent: '{{ intent_record.intent }}'
         intent_path: '{{ intent.split(''.'') }}'
     - alias: Choose Intent Engine based on intent_path
       choose:
@@ -103,7 +103,7 @@ script:
         - action: script.astv_intent_engine_media
           metadata: {}
           data:
-            request: '{{ request }}'
+            intent_record: '{{ intent_record }}'
             target_area: '{{ target_area }}'
         alias: Media.*
       - conditions:
@@ -113,7 +113,7 @@ script:
         - action: script.astv_intent_engine_routine
           metadata: {}
           data:
-            request: '{{ request }}'
+            intent_record: '{{ intent_record }}'
             target_area: '{{ target_area }}'
         alias: Routine.*
       default:
@@ -123,7 +123,7 @@ script:
           message: 'No intent recognised for:
 
 
-            Title: {{ request.title }}
+            Title: {{ intent_record.title }}
 
             Intent: {{ intent }}
 
@@ -206,12 +206,12 @@ script:
     description: Resolves Media execution details through the normalized MediaCat path
       and dispatches the complete execution context.
     fields:
-      request:
+      intent_record:
         selector:
           object:
-        name: Request
+        name: Intent Record
         required: true
-        description: The UID object found for the scanned UID.
+        description: The resolved ASTV intent record.
       target_area:
         selector:
           text:
@@ -220,9 +220,9 @@ script:
         description: The area resolved for this ASTV request.
     sequence:
     - variables:
-        catalogue_id: '{{ request.params.catalogue_id | default('''', true) | string
+        catalogue_id: '{{ intent_record.params.catalogue_id | default('''', true) | string
           | trim }}'
-        item_id: '{{ request.params.item_id | default('''', true) | string | trim }}'
+        item_id: '{{ intent_record.params.item_id | default('''', true) | string | trim }}'
     - alias: Validate normalized MediaCat reference
       choose:
       - alias: Incomplete MediaCat reference
@@ -233,7 +233,7 @@ script:
         - action: persistent_notification.create
           data:
             title: Incomplete MediaCat Reference
-            message: 'Media intent ''{{ request.title | default(''(untitled)'', true)
+            message: 'Media intent ''{{ intent_record.title | default(''(untitled)'', true)
               }}'' supplied an incomplete MediaCat reference.
 
 
@@ -251,7 +251,7 @@ script:
         - action: persistent_notification.create
           data:
             title: Missing MediaCat Reference
-            message: 'Media intent ''{{ request.title | default(''(untitled)'', true) }}'' supplied no MediaCat catalogue_id/item_id.'
+            message: 'Media intent ''{{ intent_record.title | default(''(untitled)'', true) }}'' supplied no MediaCat catalogue_id/item_id.'
         - stop: Missing MediaCat reference
           error: true
     - action: curated_media.resolve_media_record
@@ -262,7 +262,7 @@ script:
     - action: script.astv_find_area_domain_endpoints
       metadata: {}
       data:
-        domain: '{{ request.params.output.domain }}'
+        domain: '{{ intent_record.params.output.domain }}'
         area: '{{ target_area }}'
       response_variable: area_domain_response
     - action: script.astv_resolve_playback_method
@@ -285,7 +285,7 @@ script:
     - action: script.astv_select_execution_engine
       data:
         intent_context:
-          record: '{{ request }}'
+          record: '{{ intent_record }}'
           data:
             media_record: '{{ media_record_response }}'
         target_context:
@@ -807,7 +807,7 @@ script:
         error: false
     - action: script.astv_select_intent_engine
       data:
-        request: '{{ intent_record_response }}'
+        intent_record: '{{ intent_record_response }}'
         target_area: '{{ target_area }}'
   astv_select_execution_engine:
     alias: ASTV - Select Execution Engine
@@ -947,9 +947,9 @@ script:
     mode: parallel
     max: 10
     fields:
-      request:
-        name: Request
-        description: The complete ASTV request object.
+      intent_record:
+        name: Intent Record
+        description: The resolved ASTV intent record.
         required: true
         selector:
           object:
@@ -963,7 +963,7 @@ script:
     - action: script.astv_select_execution_engine
       data:
         intent_context:
-          record: '{{ request }}'
+          record: '{{ intent_record }}'
           data: {}
         target_context:
           area: '{{ target_area }}'

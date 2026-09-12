@@ -403,20 +403,11 @@
             <mxPoint x="-7" y="28" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="gateway_merge_intent" parent="AlRS6Nxp4NqdQ7xusg6v-5" style="rhombus;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="" vertex="1">
-          <mxGeometry height="50" width="50" x="1726" y="1046.5" as="geometry" />
+        <mxCell id="edge-media-to-select-execution" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-3" source="astv-intent-engine-media" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="astv-select-execution-engine" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="edge-media-to-intent-merge" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-5" source="astv-intent-engine-media" style="endArrow=classic;html=1;rounded=0;exitX=0.997;exitY=0.501;exitDx=0;exitDy=0;exitPerimeter=0;fillColor=#dae8fc;strokeColor=#6c8ebf;" target="gateway_merge_intent" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="1359" y="1134" as="sourcePoint" />
-            <mxPoint x="1409" y="1084" as="targetPoint" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="edge-routine-to-intent-merge" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-5" source="astv-intent-engine-routine" style="endArrow=classic;html=1;rounded=0;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;edgeStyle=orthogonalEdgeStyle;fillColor=#dae8fc;strokeColor=#6c8ebf;" target="gateway_merge_intent" value="">
-          <mxGeometry height="50" relative="1" width="50" as="geometry">
-            <mxPoint x="1405" y="1388" as="sourcePoint" />
-            <mxPoint x="1455" y="1338" as="targetPoint" />
-          </mxGeometry>
+        <mxCell id="edge-routine-to-select-execution" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-3" source="astv-intent-engine-routine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;entryPerimeter=0;" target="astv-select-execution-engine" value="">
+          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="AlRS6Nxp4NqdQ7xusg6v-6" parent="AlRS6Nxp4NqdQ7xusg6v-3" style="swimlane;swimlaneHead=0;swimlaneBody=0;fontStyle=1;strokeColor=inherit;connectable=0;fillColor=none;startSize=40;collapsible=0;recursiveResize=0;expand=0;fontSize=16;" value="Phase 3" vertex="1">
           <mxGeometry height="3087" width="2202" x="4274" as="geometry">
@@ -802,32 +793,34 @@
             <mxPoint x="43" y="-65" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="edge-intent-merge-to-select-execution" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-3" source="gateway_merge_intent" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;exitPerimeter=0;" target="astv-select-execution-engine">
-          <mxGeometry relative="1" as="geometry" />
-        </mxCell>
-        <mxCell id="label-intent-merge-to-select-execution-method" connectable="0" parent="edge-intent-merge-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_method" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="49" y="-126" as="offset" />
+        <mxCell id="label-media-to-select-execution-intent-context" connectable="0" parent="edge-media-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_context" vertex="1">
+          <mxGeometry relative="1" x="0.5" y="-8" as="geometry">
+            <mxPoint x="0" y="-34" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-intent-merge-to-select-execution-media-record" connectable="0" parent="edge-intent-merge-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;fontStyle=2;" value="media_record" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="37" y="-149" as="offset" />
+        <mxCell id="label-media-to-select-execution-target-context" connectable="0" parent="edge-media-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_context" vertex="1">
+          <mxGeometry relative="1" x="0.5" y="-8" as="geometry">
+            <mxPoint x="0" y="-11" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-intent-merge-to-select-execution-request" connectable="0" parent="edge-intent-merge-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="request" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="23" y="-103" as="offset" />
+        <mxCell id="label-media-to-select-execution-execution-context" connectable="0" parent="edge-media-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_context" vertex="1">
+          <mxGeometry relative="1" x="0.5" y="-8" as="geometry">
+            <mxPoint x="0" y="12" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-intent-merge-to-select-execution-target-area" connectable="0" parent="edge-intent-merge-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_area" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="35" y="-80" as="offset" />
+        <mxCell id="label-routine-to-select-execution-intent-context" connectable="0" parent="edge-routine-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_context" vertex="1">
+          <mxGeometry relative="1" x="0.45" y="-8" as="geometry">
+            <mxPoint x="74" y="-24" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-intent-merge-to-select-execution-endpoint" connectable="0" parent="edge-intent-merge-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="selected_endpoint" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="56" y="-58" as="offset" />
+        <mxCell id="label-routine-to-select-execution-target-context" connectable="0" parent="edge-routine-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_context" vertex="1">
+          <mxGeometry relative="1" x="0.45" y="-8" as="geometry">
+            <mxPoint x="74" y="0" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-routine-to-select-execution-execution-context" connectable="0" parent="edge-routine-to-select-execution" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_context" vertex="1">
+          <mxGeometry relative="1" x="0.45" y="-8" as="geometry">
+            <mxPoint x="74" y="24" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="edge-uid-to-intent-gateway" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-3" source="astv-uid-gateway" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="astv-intent-gateway">

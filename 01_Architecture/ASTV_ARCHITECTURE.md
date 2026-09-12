@@ -99,7 +99,7 @@ No other NFC reader sensors are part of the current listener architecture.
 - On success, temporarily creates `Tag Record Found` with UID, trigger entity, resolved intent ID, and optional tag area override.
 - Calls `script.astv_intent_gateway` with:
   - `intent_id` from `tag_record_response.intent_id`
-  - `trigger_area_override` from optional `tag_record_response.area_override`
+  - `input_area_override` from optional `tag_record_response.area_override`
   - `trigger_entity`
 
 UID Gateway does not resolve the catalogue request or area itself and does not call Select Intent Engine directly.
@@ -123,7 +123,7 @@ The function normalizes the supplied UID using string conversion, trimming, and 
 - Friendly name: `ASTV - Intent Gateway`
 - Inputs:
   - `intent_id` (required)
-  - `trigger_area_override` (optional)
+  - `input_area_override` (optional)
   - `trigger_entity` (optional)
 - Return: none
 
@@ -131,7 +131,7 @@ It calls `script.astv_find_intent_record` with `intent_id` and captures the exac
 
 For a resolved record, Intent Gateway separately calls `script.astv_resolve_area` with:
 
-- `trigger_area_override` from the gateway input
+- `input_area_override` from the gateway input
 - `intent_area_override` from the record's optional `area_override`
 - `trigger_entity` from the gateway input
 
@@ -140,7 +140,7 @@ It captures `area_response`, derives `target_area`, and stops with a persistent 
 - `request` (the complete `intent_record_response`)
 - `target_area`
 
-`intent_id`, `trigger_area_override`, and `trigger_entity` are not passed downstream. Find Intent Record and Resolve Area are independent children of Intent Gateway; neither calls the other.
+`intent_id`, `input_area_override`, and `trigger_entity` are not passed downstream. Find Intent Record and Resolve Area are independent children of Intent Gateway; neither calls the other.
 
 #### ASTV - Fn: Find Intent Record
 
@@ -157,12 +157,12 @@ The function normalizes the supplied ID using string conversion, trimming, and l
 
 - Entity: `script.astv_resolve_area`
 - Inputs:
-  - `trigger_area_override` (optional)
+  - `input_area_override` (optional)
   - `intent_area_override` (optional)
   - `trigger_entity`
 - Return: `area_response`
 
-`target_area` is resolved using this precedence: non-blank `trigger_area_override`, non-blank `intent_area_override`, `area_id(trigger_entity)`, then an empty value when unresolved. The resolver is side-effect-free.
+`target_area` is resolved using this precedence: non-blank `input_area_override`, non-blank `intent_area_override`, `area_id(trigger_entity)`, then an empty value when unresolved. The resolver is side-effect-free.
 
 ## Phase 2 — Intent Routing
 

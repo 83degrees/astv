@@ -69,7 +69,7 @@ path.
 - Approved architecture location: `01_Architecture/ASTV_ARCHITECTURE.md`
 - Governed diagram: `01_Architecture/Diagrams/ASTV_ARCHITECTURE.drawio`
 - Architecture state: current approved
-- Material DDRs: None
+- Material DDRs: `02_Decisions/DDR-01-001_DIRECT_INTENT_ENGINE_EXECUTION_DISPATCH.md`
 
 The Markdown file is the semantic architecture authority. The diagram is its
 governed representation.
@@ -78,7 +78,7 @@ governed representation.
 
 | Contract | Status/version | Authoritative provider-owned location | Consumers | Notes |
 | --- | --- | --- | --- | --- |
-| `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v2.0.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal Phase 2-to-Phase 3 boundary; ASTV is both provider and consumer. |
+| `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v3.0.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal Phase 2-to-Phase 3 boundary; ASTV is both provider and consumer. |
 
 ## Contracts consumed
 

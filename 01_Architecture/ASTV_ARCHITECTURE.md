@@ -44,8 +44,10 @@ branches. They are retained implementation history, not the current media
 interface or a promised fallback: all active media records select the normalized
 branch. `ASTV-76` also removed the v1 shape from the ASTV AdvMedia adapter, so
 the retained Handle Provider AdvMedia call no longer matches that boundary. The
-only current ASTV-to-AdvMedia boundary is normalized v2. The Routine path is
-unchanged and continues to use its four-field internal response.
+only current ASTV-to-AdvMedia boundary is normalized v2. `ASTV-200` replaces the
+internal Phase 2-to-Phase 3 handoff with the fixed three-context dispatch
+interface described below; downstream execution-engine interfaces remain
+unchanged. The durable rationale is recorded in `DDR-01-001`.
 
 ## End-to-End Flow
 
@@ -53,7 +55,7 @@ The lifecycle moves left-to-right through four phase bands. The active NFC path 
 
 1. Phase 0 receives the external NFC input through the MQTT-fed reader sensors and resolves the tag UID to its canonical `intent_id`.
 2. Phase 1 looks up the intent catalogue record and resolves the target area through Intent Gateway.
-3. Phase 2 selects the request intent. Media resolves the playback method and selected endpoint; Routine passes through the common execution fields. The exclusive intent choice then merges, and Select Intent Engine calls the execution dispatcher once with the selected branch's response.
+3. Phase 2 selects the request intent. Media resolves the playback method and selected endpoint; Routine selects Google Automation. The selected intent engine constructs the complete three-context dispatch payload and calls Select Execution Engine directly.
 4. Phase 3 dispatches one of the two Media execution methods or the Google Automation flow.
 
 The current intent outcomes are `Media` and `Routine`. The current playback-engine outcomes are `HA Media Player` and `Google Home Device`.
@@ -175,12 +177,10 @@ The function normalizes the supplied ID using string conversion, trimming, and l
   - `Media`
   - `Routine`
 
-The `Routine` outcome originates here. It does not originate from Intent Engine: Media.
-Select Intent Engine invokes exactly one intent engine and captures either
-engine's complete response as `intent_response`. After the exclusive `Intent?`
-choice finishes, Select Intent Engine calls the Phase 3 dispatcher exactly
-once. An unknown intent stops visibly inside the choice before that shared
-call.
+The `Routine` outcome originates here. It does not originate from Intent Engine:
+Media. Select Intent Engine invokes exactly one intent engine and performs no
+response capture, payload reconstruction, or execution dispatch of its own. An
+unknown intent stops visibly inside the choice.
 
 ### Media Outcome: ASTV - Intent Engine: Media
 
@@ -188,12 +188,12 @@ call.
 - Inputs:
   - `request`
   - `target_area`
-- Current return fields:
-  - `request`, passed through unchanged
-  - `target_area`, passed through unchanged
-  - `execution_method`, resolved from the selected playback method
-  - `selected_endpoint`, resolved from the selected area playback endpoint
-  - `media_record`, the complete unchanged normalized MediaCat response
+- Dispatches directly to `script.astv_select_execution_engine` with:
+  - `intent_context.record`: the unchanged `request`
+  - `intent_context.data.media_record`: the complete unchanged normalized MediaCat response
+  - `target_context.area`: the unchanged `target_area`
+  - `target_context.endpoint`: the selected area playback endpoint
+  - `execution_context.engine`: the resolved playback method
 
 The live definition reads `catalogue_id`, `item_id`, and `output.domain`
 directly from `request.params`. It normalizes the two MediaCat identifiers for
@@ -254,12 +254,11 @@ Intent Engine: Media derives two separately named values from the one-key
 - `execution_method` from its key
 - `selected_endpoint` from the value for that key
 
-The current normalized branch returns those values together with the unchanged
-`request`, `target_area`, and complete unchanged `media_record_response` as
-`media_record`. It does not flatten the record, remove unselected methods, or
-add an internal `selected_execution_method`. The retained pre-cutover branch
-omits only `media_record`. Neither branch calls the dispatcher or an execution
-engine.
+The current normalized branch places those values together with the unchanged
+`request`, `target_area`, and complete unchanged `media_record_response` into
+the fixed three-context interface and calls Select Execution Engine directly.
+It does not flatten the record, remove unselected methods, or add an internal
+`selected_execution_method`.
 
 ### Routine Outcome: ASTV - Intent Engine: Routine
 
@@ -267,26 +266,15 @@ engine.
 - Inputs:
   - `request`
   - `target_area`
-- Return fields:
-  - `request`, passed through unchanged
-  - `target_area`, passed through unchanged
-  - `execution_method: g_automation`
-  - `selected_endpoint: {}`
+- Dispatches directly to `script.astv_select_execution_engine` with:
+  - `intent_context.record`: the unchanged `request`
+  - `intent_context.data: {}`
+  - `target_context.area`: the unchanged `target_area`
+  - `target_context.endpoint: {}`
+  - `execution_context.engine: g_automation`
 
-The four fields are returned as separate top-level fields in the native Home
-Assistant script response mapping. They are not wrapped in an
-`execution_request` or generic payload object. The engine does not resolve the
-routine trigger and has no execution side effects.
-
-The retained pre-cutover Media outcome and the current Routine outcome share the
-same explicit four-field base. Select Intent Engine captures the selected
-response as `intent_response`; the exclusive merge is control-flow convergence
-only and performs no transformation. After the choice has closed, Select Intent
-Engine builds one dispatcher mapping containing `request`, `target_area`,
-`execution_method`, and `selected_endpoint`. It adds `media_record` on the
-current Media path, then calls `script.astv_select_execution_engine` exactly
-once. Routine retains the four-field call; every current Media call carries the
-complete record without a second lookup or dispatch path.
+The engine does not resolve the routine trigger. Its only execution-side effect
+is invoking the execution selector with the complete fixed-shape context.
 
 ## Phase 3 — Execution
 
@@ -294,12 +282,14 @@ complete record without a second lookup or dispatch path.
 
 - Entity: `script.astv_select_execution_engine`
 - Inputs:
-  - `execution_method`
-  - `request`
-  - `target_area`
-  - `selected_endpoint`
-  - `media_record`, required on the current Media path and absent on Routine
-    (declared optional in the live script only to retain the pre-cutover branch)
+  - `intent_context`
+    - `record`
+    - `data`
+  - `target_context`
+    - `area`
+    - `endpoint`
+  - `execution_context`
+    - `engine`
 - Common response: none
 - Exclusive decision: `Execution Method?`
 - Current implemented outcomes:
@@ -307,23 +297,23 @@ complete record without a second lookup or dispatch path.
   - `Google Home Device` (`g_home_device`)
   - `Google Automation` (`g_automation`)
 
-`target_area` is required pipeline context. It is not consumed by either Media
-branch, but is passed separately to Google Automation. All three implemented
-execution engines receive the complete `request` object unchanged from the
-dispatcher. The current Media calls additionally receive the unchanged
-`execution_method` and complete `media_record`; Routine does not. The live
-dispatcher still contains a no-`media_record` media call shape for retained
-pre-cutover definitions, but no active media record selects it. The dispatcher
-does not inspect or validate record contents. It validates
-`selected_endpoint.media_entity` for `ha_mplayer` and
-`selected_endpoint.phrase` for `g_home_device`. A missing endpoint or a blank
+All three top-level objects and their inner keys are mandatory. `data` and
+`endpoint` remain present as `{}` when unused. Select Execution Engine adapts
+this boundary to the unchanged downstream execution-engine inputs. All three
+implemented execution engines receive `intent_context.record` as their existing
+`request`; Media engines also receive `target_context.endpoint`,
+`execution_context.engine`, and `intent_context.data.media_record`. Google
+Automation receives `target_context.area`. The dispatcher validates
+`target_context.endpoint.media_entity` for `ha_mplayer` and
+`target_context.endpoint.phrase` for `g_home_device`. A missing endpoint or a blank
 or unsupported method creates a persistent notification and stops the run as
 failed before any downstream engine is called.
 
-For `g_automation`, the dispatcher validates non-blank `request.routine` and
-`target_area`, then calls `script.astv_g_automation_engine` with the complete
-`request` object and separate `target_area`.
-`selected_endpoint` is intentionally empty and unused for this method. A blank
+For `g_automation`, the dispatcher validates non-blank
+`intent_context.record.routine` and `target_context.area`, then calls
+`script.astv_g_automation_engine` with those values mapped back to its existing
+`request` and `target_area` inputs. `target_context.endpoint` is intentionally
+empty and unused for this method. A blank
 Routine value or blank Routine target area creates a persistent notification
 and stops the run as failed before Google Automation is called.
 
@@ -547,10 +537,11 @@ boundary. The ASTV boundary adapter uses the separately named
 `selected_execution_method` only where required by the cross-product AdvMedia
 contract.
 
-The current media dispatcher adds the normalized record to the media path while
-retaining the current `request`, `target_area`, `execution_method`, and
-`selected_endpoint` context. The Routine path remains on its current four-field
-boundary and is unchanged by this media activation.
+The current media intent engine carries the normalized record in
+`intent_context.data.media_record`, with the selected method in
+`execution_context.engine` and the resolved target in `target_context`. The
+Routine path uses the same fixed shape, with empty `data` and `endpoint`
+objects.
 
 ### Current HA Media Player path
 
@@ -642,9 +633,9 @@ Exact verified names must be preserved. In particular:
 - `command_response`
 - `provider_command_response`
 - `trigger_response`
-- `intent_response`
-- `media_intent_response`
-- `routine_intent_response`
+- `intent_context`
+- `target_context`
+- `execution_context`
 
 A caller's `response_variable` name describes how that caller captures a result. A child's returned payload name describes the child's own interface. Do not rename either for visual or documentary consistency, and do not collapse names across adapter/provider boundaries.
 

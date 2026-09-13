@@ -68,13 +68,7 @@ script:
     - variables:
         endpoints: !include ../../assistive/astv_area_endpoints2.yaml
     - variables:
-        area_domain_response: "{{\
-  endpoints\
-  .get(area, {})\
-  .get('playback',\
-          {})\
-  .get(domain, {})\
-}}"
+        area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
     - stop: Area playback domain endpoints found
       response_variable: area_domain_response
 
@@ -350,12 +344,8 @@ script:
     - variables:
         available_source_names: '{{ available_sources.keys() | list }}'
     - variables:
-        matching_sources: "{{\
-  preferences\
-  | select('in', available_source_names)\
-
-          \\ | list\
-}}"
+        matching_sources: "{{\n  preferences\n  | select('in', available_source_names)\n
+          \ | list\n}}"
     - variables:
         playback_method_response:
           selected_source: '{{ matching_sources | first }}'
@@ -660,11 +650,8 @@ script:
     sequence:
     - variables:
         command_response:
-          command: "{{ (phrase | trim)\
-   ~ (' on ' ~ (endpoint_phrase | trim)\
-      if
-            (append_target | bool)\
-      else '') }}"
+          command: "{{ (phrase | trim)\n   ~ (' on ' ~ (endpoint_phrase | trim)\n      if
+            (append_target | bool)\n      else '') }}"
     - stop: Media command built
       response_variable: command_response
   astv_find_routine_trigger:
@@ -688,13 +675,8 @@ script:
     sequence:
     - variables:
         routine_label: routine_{{ routine }}
-        matching_triggers: "{{\
-  area_entities(target_area)\
-  | select('in', label_entities(routine_label))\
-
-          \\ | select('in', label_entities('matter_gh_trigger'))\
-  | list\
-}}"
+        matching_triggers: "{{\n  area_entities(target_area)\n  | select('in', label_entities(routine_label))\n
+          \ | select('in', label_entities('matter_gh_trigger'))\n  | list\n}}"
     - variables:
         trigger_response:
           entity_id: '{{ matching_triggers | first if matching_triggers | count == 1

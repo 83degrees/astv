@@ -114,8 +114,8 @@ execution-engine inputs.
 - The HA Media Player Engine requires a non-blank
   `target_context.endpoint.media_entity` and
   `intent_context.data.media_record`.
-- It adapts the ASTV contexts into the unchanged
-  `script.astv_adapter_advmedia` inputs.
+- It adapts the ASTV contexts into the unchanged AdvMedia direct-core inputs and
+  calls `script.advmedia_process_media_record`.
 
 ### `g_home_device`
 
@@ -146,9 +146,9 @@ atomically under ASTV-204.
 
 No declared external consumer uses this internal contract. The MediaCat and
 AdvMedia provider-owned contracts listed in `00_Governance/PROJECT_PROFILE.md`
-are not changed. The HA Media Player Engine remains the ASTV-owned adaptation
-point into the existing AdvMedia adapter contract; Google provider and helper
-interfaces are unchanged.
+remain separate authorities. The HA Media Player Engine remains the ASTV-owned
+adaptation point and calls the AdvMedia direct core without an intermediate
+ASTV adapter; Google provider and helper interfaces are unchanged.
 
 ## Version History
 

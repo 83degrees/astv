@@ -92,8 +92,8 @@ contracts without coupling the selector to engine-specific requirements.
   `execution_context`; their legacy inputs are not supported in parallel.
 - Select Execution Engine rejects only blank or unsupported routing keys.
 - Each selected engine validates and extracts its required values locally.
-- HA Media Player remains the ASTV-owned adaptation point into the unchanged
-  AdvMedia adapter contract.
+- HA Media Player remains the ASTV-owned adaptation point and calls the
+  AdvMedia direct-core contract without an intermediate ASTV adapter.
 - The upstream intent-record input was subsequently renamed from `request` to
   `intent_record` under ASTV-203; `target_area` remains unchanged.
 

@@ -59,7 +59,7 @@ path.
 | ASTV intent and orchestration pipeline | owned | ASTV | Includes entry, request/area resolution, routing, selection, and dispatch. |
 | ASTV execution-dispatch boundary | owned | ASTV | Exact fields and failure behaviour are defined by `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md`. |
 | MediaCat normalized item lookup and returned record | consumed | MediaCat | ASTV consumes the provider-owned contract and does not own the record schema. |
-| AdvMedia playback-preparation boundary | consumed | AdvMedia | ASTV owns its adapter and final playback action; AdvMedia owns its entry point and internals. |
+| AdvMedia playback-preparation boundary | consumed | AdvMedia | ASTV's HA Media Player Engine calls the AdvMedia direct core and owns the final playback action; AdvMedia owns its entry point and internals. |
 | Home Assistant runtime and metadata registries | external | Home Assistant | Runtime truth remains external to this repository. |
 | MQTT reader delivery | external | MQTT / reader infrastructure | ASTV consumes configured reader-sensor state changes. |
 | Google Assistant, Google Home, and Matter execution surfaces | external | Their respective platforms | ASTV uses governed/configured entry points without owning those platforms. |
@@ -85,7 +85,7 @@ governed representation.
 | Contract | Status/version | Provider/owner | Authoritative location | Local use |
 | --- | --- | --- | --- | --- |
 | `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | current registry v1.0.0 | MediaCat | `MediaCat/03_Contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized lookup and complete returned record used before ASTV selects a method and endpoint. |
-| `ASTV_ADVMEDIA_INTERFACE.md` | current v2.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | Playback context passed through the ASTV adapter; AdvMedia's contracted result is consumed before ASTV's final playback action. |
+| `ASTV_ADVMEDIA_INTERFACE.md` | current v2.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | The HA Media Player Engine passes playback context directly to the AdvMedia core and consumes its playback payload before ASTV's final playback action. |
 
 The provider-owned locations above are the sole operational contract
 authorities. Former shared Governance 1.2 copies under

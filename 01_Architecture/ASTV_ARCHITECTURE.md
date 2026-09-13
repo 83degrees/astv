@@ -44,10 +44,11 @@ branches. They are retained implementation history, not the current media
 interface or a promised fallback: all active media records select the normalized
 branch. `ASTV-76` also removed the v1 shape from the ASTV AdvMedia adapter, so
 the retained Handle Provider AdvMedia call no longer matches that boundary. The
-only current ASTV-to-AdvMedia boundary is normalized v2. `ASTV-200` replaces the
+only current ASTV-to-AdvMedia boundary is normalized v2. `ASTV-200` replaced the
 internal Phase 2-to-Phase 3 handoff with the fixed three-context dispatch
-interface described below; downstream execution-engine interfaces remain
-unchanged. The durable rationale is recorded in `DDR-01-001`.
+interface described below. `ASTV-204` carries that interface unchanged through
+the selector into all three execution engines. The durable rationale is
+recorded in `DDR-01-001`.
 
 ## End-to-End Flow
 
@@ -56,7 +57,9 @@ The lifecycle moves left-to-right through four phase bands. The active NFC path 
 1. Phase 0 receives the external NFC input through the MQTT-fed reader sensors and resolves the tag UID to its canonical `intent_id`.
 2. Phase 1 looks up the intent catalogue record and resolves the target area through Intent Gateway.
 3. Phase 2 selects the request intent. Media resolves the playback method and selected endpoint; Routine selects Google Automation. The selected intent engine constructs the complete three-context dispatch payload and calls Select Execution Engine directly.
-4. Phase 3 dispatches one of the two Media execution methods or the Google Automation flow.
+4. Phase 3 routes the unchanged three-context payload to one of the two Media
+   execution engines or the Google Automation engine. The selected engine owns
+   its context extraction and validation.
 
 The current intent outcomes are `Media` and `Routine`. The current playback-engine outcomes are `HA Media Player` and `Google Home Device`.
 
@@ -298,24 +301,10 @@ is invoking the execution selector with the complete fixed-shape context.
   - `Google Automation` (`g_automation`)
 
 All three top-level objects and their inner keys are mandatory. `data` and
-`endpoint` remain present as `{}` when unused. Select Execution Engine adapts
-this boundary to the unchanged downstream execution-engine inputs. All three
-implemented execution engines receive `intent_context.record` as their existing
-`request`; Media engines also receive `target_context.endpoint`,
-`execution_context.engine`, and `intent_context.data.media_record`. Google
-Automation receives `target_context.area`. The dispatcher validates
-`target_context.endpoint.media_entity` for `ha_mplayer` and
-`target_context.endpoint.phrase` for `g_home_device`. A missing endpoint or a blank
-or unsupported method creates a persistent notification and stops the run as
-failed before any downstream engine is called.
-
-For `g_automation`, the dispatcher validates non-blank
-`intent_context.record.routine` and `target_context.area`, then calls
-`script.astv_g_automation_engine` with those values mapped back to its existing
-`request` and `target_area` inputs. `target_context.endpoint` is intentionally
-empty and unused for this method. A blank
-Routine value or blank Routine target area creates a persistent notification
-and stops the run as failed before Google Automation is called.
+`endpoint` remain present as `{}` when unused. Select Execution Engine is a pure
+router: it routes only on `execution_context.engine`, passes all three context
+objects unchanged, and rejects a blank or unsupported engine. Engine-specific
+extraction and validation belong to the selected execution engine.
 
 The dispatcher returns no common data response.
 
@@ -325,24 +314,23 @@ The dispatcher returns no common data response.
 
 - Entity: `script.astv_ha_mplayer_engine`
 - Inputs:
-  - `request`
-  - `selected_endpoint`
-  - `execution_method`, required on the current Media path
-  - `media_record`, required on the current Media path
+  - `intent_context`
+  - `target_context`
+  - `execution_context`
 - Calls
   `script.astv_adapter_advmedia` directly with:
-  - complete `media_record`
-  - `selected_execution_method`, mapped from `execution_method`
+  - complete `media_record`, extracted from `intent_context`
+  - `selected_execution_method`, extracted from `execution_context`
   - selected `media_player`
 - Captures the provider result as:
   - `provider_payload_response`
 - Terminal action:
   - `media_player.play_media`
 
-The live field declarations remain optional so the script can retain its
-pre-cutover no-context branch, but the two context values are a required pair on
-every current Media call. A partial pair stops before any downstream call. An
-adapter or AdvMedia failure does not select the retained branch as fallback.
+The engine extracts and validates the selected media-player entity and
+normalized media record from the shared contexts. It then adapts those ASTV
+values into the unchanged `ASTV - Adapter: AdvMedia` contract. An adapter or
+AdvMedia failure does not trigger an alternative execution path.
 
 #### ASTV - Adapter: AdvMedia
 
@@ -405,18 +393,18 @@ shape to the now v2-only adapter, so it is not a supported fallback path.
 
 - Entity: `script.astv_g_home_device_engine`
 - Inputs:
-  - `request`
-  - `selected_endpoint`
-  - `execution_method`, required on the current Media path
-  - `media_record`, required on the current Media path
+  - `intent_context`
+  - `target_context`
+  - `execution_context`
 - Reads only
-  `media_record.execution_methods[execution_method].source`, validates the
+  `intent_context.data.media_record.execution_methods[execution_context.engine].source`,
+  validates the endpoint phrase locally along with the
   `assistant_command` source and `google_assistant` provider, and calls
   `script.astv_provider_g_assist` with:
   - `assistant_source`
   - `endpoint_phrase`
-- A partial context pair, unusable selected source, unsupported provider,
-  missing command, or required but unusable endpoint phrase stops explicitly
+- A missing media record, unusable selected source, unsupported provider,
+  missing command, or unusable endpoint phrase stops explicitly
   before the terminal action.
 - Captures the provider result as:
   - `provider_command_response`
@@ -459,18 +447,18 @@ The command-builder exclusive split and merge gateways represent control flow on
 ### Routine / Google Automation Branch
 
 The Routine branch reaches this Phase 3 region through the shared execution
-dispatcher's `g_automation` outcome. Select Intent Engine initiates dispatch
-once after the Phase 2 `choose` has closed.
+selector's `g_automation` outcome.
 
 #### ASTV - Google Automation Engine
 
 - Entity: `script.astv_g_automation_engine`
 - Inputs:
-  - `request`
-  - `target_area`
+  - `intent_context`
+  - `target_context`
+  - `execution_context`
 - Calls `script.astv_find_routine_trigger` with:
-  - `routine` from `request.routine`
-  - `target_area`
+  - `routine` extracted from `intent_context.record.routine`
+  - `target_area` extracted from `target_context.area`
 - Captures the result as:
   - `trigger_response`
 - Action:
@@ -530,10 +518,10 @@ contract; choosing another method or source remains future refinement.
 
 ASTV passes the complete normalized MediaCat record unchanged through the selected
 media execution path. It does not remove unselected methods or write its selection
-into the MediaCat record. The existing internal `execution_method` remains the
-ASTV-selected method, carried separately from `media_record`; a duplicate
+into the MediaCat record. `execution_context.engine` remains the ASTV-selected
+method, carried separately from `intent_context.data.media_record`; a duplicate
 `selected_execution_method` field is not added to the internal dispatcher
-boundary. The ASTV boundary adapter uses the separately named
+boundary. The ASTV AdvMedia boundary adapter uses the separately named
 `selected_execution_method` only where required by the cross-product AdvMedia
 contract.
 

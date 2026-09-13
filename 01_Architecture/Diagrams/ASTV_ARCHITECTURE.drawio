@@ -564,24 +564,19 @@
             <mxPoint x="93" y="-352" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-ha-request" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="request" vertex="1">
+        <mxCell id="label-playback-to-ha-request" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="24" y="-77" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-ha-endpoint" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="selected_endpoint" vertex="1">
+        <mxCell id="label-playback-to-ha-endpoint" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="57" y="-56" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-ha-method" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_method" vertex="1">
+        <mxCell id="label-playback-to-ha-method" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="55" y="-122" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="label-playback-to-ha-media-record" connectable="0" parent="edge-playback-to-ha" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="media_record" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="43" y="-100" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="edge-ha-engine-to-terminal" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-ha-mplayer-engine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;shape=flexArrow;fillColor=#e1d5e7;" target="terminal-ha-media-player">
@@ -613,24 +608,19 @@
             <mxPoint x="91" y="163" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-google-request" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="request" vertex="1">
+        <mxCell id="label-playback-to-google-request" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="28" y="-88" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-google-endpoint" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="selected_endpoint" vertex="1">
+        <mxCell id="label-playback-to-google-endpoint" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="61" y="-62" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-playback-to-google-method" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_method" vertex="1">
+        <mxCell id="label-playback-to-google-method" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_context" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="59" y="-138" as="offset" />
-          </mxGeometry>
-        </mxCell>
-        <mxCell id="label-playback-to-google-media-record" connectable="0" parent="edge-playback-to-google-home" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="media_record" vertex="1">
-          <mxGeometry relative="1" x="1" y="-8" as="geometry">
-            <mxPoint x="47" y="-113" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="astv-provider-g-assist" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="&lt;b&gt;ASTV - Provider: Google Assist&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;script.astv_provider_g_assist&lt;/span&gt;" vertex="1">
@@ -690,14 +680,19 @@
             <mxPoint x="84" y="1293" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-execution-to-google-automation-routine" connectable="0" parent="edge-execution-to-google-automation" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="request" vertex="1">
+        <mxCell id="label-execution-to-google-automation-routine" connectable="0" parent="edge-execution-to-google-automation" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_context" vertex="1">
           <mxGeometry relative="1" x="0.85" y="-8" as="geometry">
             <mxPoint x="154" y="-84" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-execution-to-google-automation-target-area" connectable="0" parent="edge-execution-to-google-automation" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_area" vertex="1">
+        <mxCell id="label-execution-to-google-automation-target-area" connectable="0" parent="edge-execution-to-google-automation" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="target_context" vertex="1">
           <mxGeometry relative="1" x="0.85" y="-8" as="geometry">
             <mxPoint x="167" y="-61" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-execution-to-google-automation-execution-context" connectable="0" parent="edge-execution-to-google-automation" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_context" vertex="1">
+          <mxGeometry relative="1" x="0.85" y="-8" as="geometry">
+            <mxPoint x="176" y="-38" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="astv-find-routine-trigger" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="&lt;b&gt;ASTV - Fn: Find Routine Trigger&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;script.astv_find_routine_trigger&lt;/span&gt;" vertex="1">

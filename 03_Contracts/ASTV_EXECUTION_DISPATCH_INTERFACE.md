@@ -6,9 +6,9 @@
 | --- | --- |
 | Owner | ASTV |
 | Producers | `script.astv_intent_engine_media` and `script.astv_intent_engine_routine` |
-| Consumer | `script.astv_select_execution_engine` |
-| Interface version | `3.0.0` |
-| Change authority | [ASTV-200](https://linear.app/83degrees/issue/ASTV-200/review-astv-intent-engine-branch-structure) |
+| Consumers | `script.astv_select_execution_engine`, `script.astv_ha_mplayer_engine`, `script.astv_g_home_device_engine`, and `script.astv_g_automation_engine` |
+| Interface version | `4.0.0` |
+| Change authority | [ASTV-204](https://linear.app/83degrees/issue/ASTV-204/push-three-context-dispatch-through-astv-execution-engines) |
 | Source path | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` |
 
 ## Purpose
@@ -19,9 +19,10 @@ complete dispatch payload and calls `script.astv_select_execution_engine`
 directly. `script.astv_select_intent_engine` is the intent-family router only;
 it is not a producer or adapter at this boundary.
 
-The execution selector adapts this interface to the existing downstream
-execution-engine interfaces. ASTV-200 does not change those downstream
-interfaces.
+The execution selector is a pure router. It routes only on
+`execution_context.engine` and passes all three context objects unchanged to
+the selected Phase 3 execution engine. Each execution engine extracts and
+validates the context it needs and adapts it at any external product boundary.
 
 ## Required Interface
 
@@ -76,84 +77,98 @@ selected method into that record.
 
 Routine-trigger resolution remains downstream in the Google Automation path.
 
-## Execution Selector Adapter Mappings
+## Phase 3 Consumer Mappings
 
 ### `ha_mplayer`
 
-| Dispatch field | Existing downstream input |
+| Selector input | HA Media Player Engine input |
 | --- | --- |
-| `intent_context.record` | `request` |
-| `target_context.endpoint` | `selected_endpoint` |
-| `execution_context.engine` | `execution_method` |
-| `intent_context.data.media_record` | `media_record` |
+| `intent_context` | `intent_context` |
+| `target_context` | `target_context` |
+| `execution_context` | `execution_context` |
 
 ### `g_home_device`
 
-| Dispatch field | Existing downstream input |
+| Selector input | Google Home Device Engine input |
 | --- | --- |
-| `intent_context.record` | `request` |
-| `target_context.endpoint` | `selected_endpoint` |
-| `execution_context.engine` | `execution_method` |
-| `intent_context.data.media_record` | `media_record` |
+| `intent_context` | `intent_context` |
+| `target_context` | `target_context` |
+| `execution_context` | `execution_context` |
 
 ### `g_automation`
 
-| Dispatch field | Existing downstream input |
+| Selector input | Google Automation Engine input |
 | --- | --- |
-| `intent_context.record` | `request` |
-| `target_context.area` | `target_area` |
+| `intent_context` | `intent_context` |
+| `target_context` | `target_context` |
+| `execution_context` | `execution_context` |
 
-The downstream interfaces of `script.astv_ha_mplayer_engine`,
-`script.astv_g_home_device_engine`, and `script.astv_g_automation_engine` remain
-unchanged.
+There is no selector compatibility shim for the former `request`,
+`selected_endpoint`, `execution_method`, `media_record`, or `target_area`
+execution-engine inputs.
 
 ## Execution Methods and Validation
 
 ### `ha_mplayer`
 
-- Requires a non-blank `target_context.endpoint.media_entity`.
-- Requires `intent_context.data.media_record`.
-- Calls `script.astv_ha_mplayer_engine` using the adapter mapping above.
+- The HA Media Player Engine requires a non-blank
+  `target_context.endpoint.media_entity` and
+  `intent_context.data.media_record`.
+- It adapts the ASTV contexts into the unchanged
+  `script.astv_adapter_advmedia` inputs.
 
 ### `g_home_device`
 
-- Requires a non-blank `target_context.endpoint.phrase`.
-- Requires `intent_context.data.media_record`.
-- Calls `script.astv_g_home_device_engine` using the adapter mapping above.
+- The Google Home Device Engine requires a non-blank
+  `target_context.endpoint.phrase` and
+  `intent_context.data.media_record`.
+- It extracts its normalized media and endpoint values locally.
 
 ### `g_automation`
 
-- Requires a non-blank `intent_context.record.routine`.
-- Requires a non-blank `target_context.area`.
-- Calls `script.astv_g_automation_engine` using the adapter mapping above.
-- Does not consume `target_context.endpoint`.
+- The Google Automation Engine requires a non-blank
+  `intent_context.record.routine` and `target_context.area`.
+- It extracts the routine and target area locally and does not consume
+  `target_context.endpoint`.
 
-A blank or unsupported `execution_context.engine`, a missing Media endpoint, a
-missing Media record, a blank Routine value, or a blank Routine target area
-creates the existing visible failure and stops the dispatcher before any
-downstream execution engine is called. ASTV-200 does not change these validation
-semantics or introduce automatic retry or fallback.
+A blank or unsupported `execution_context.engine` creates the existing visible
+failure in the selector. Engine-specific validation and failure handling occur
+inside the selected engine before it crosses an external boundary. These
+ownership changes do not introduce automatic retry or fallback.
 
 ## Compatibility Assessment
 
-This is an intentionally breaking replacement of the internal Phase 2-to-Phase
-3 input shape. Both producers and the sole consumer are ASTV-owned and are
-changed atomically under ASTV-200. `script.astv_select_intent_engine` ceases to
-be an intermediary producer.
+Version 4 is an intentionally breaking replacement of the three execution
+engines' legacy input interfaces. The three-context shape itself is unchanged
+from version 3, but it now continues unchanged through the selector into each
+Phase 3 engine. All affected producers and consumers are ASTV-owned and change
+atomically under ASTV-204.
 
 No declared external consumer uses this internal contract. The MediaCat and
 AdvMedia provider-owned contracts listed in `00_Governance/PROJECT_PROFILE.md`
-are not changed. Downstream ASTV execution-engine interfaces are preserved by
-the selector adapter.
+are not changed. The HA Media Player Engine remains the ASTV-owned adaptation
+point into the existing AdvMedia adapter contract; Google provider and helper
+interfaces are unchanged.
 
 ## Version History
+
+### `4.0.0` — shared Phase 3 execution-engine context
+
+- Kept the version 3 context objects and their inner shapes unchanged.
+- Made Select Execution Engine a pure router on `execution_context.engine`.
+- Passed all three context objects unchanged into every Phase 3 execution
+  engine.
+- Removed the legacy execution-engine inputs and moved engine-specific
+  extraction and validation into each engine.
+- Preserved external provider, adapter, and helper interfaces.
 
 ### `3.0.0` — direct intent-engine dispatch
 
 - Replaced the five-field dispatcher input with the fixed three-context shape.
 - Made each selected intent engine the direct producer and caller.
 - Made Select Intent Engine routing-only.
-- Kept Select Execution Engine as the adapter to unchanged downstream engines.
+- Kept Select Execution Engine as the temporary adapter to the then-unchanged
+  downstream engines; version 4 removed that temporary adaptation.
 
 ### `2.0.0` — normalized MediaCat dispatch
 
@@ -172,6 +187,6 @@ not a compatibility promise or supported fallback.
 ## Change Control
 
 Adding an intent or execution method, changing any required context key or its
-meaning, introducing a common execution response, changing direct producer
-ownership, or changing downstream adapter guarantees requires a coordinated
-implementation, contract, architecture, and diagram update.
+meaning, introducing a common execution response, changing direct producer or
+consumer ownership, or changing external adapter guarantees requires a
+coordinated implementation, contract, architecture, and diagram update.

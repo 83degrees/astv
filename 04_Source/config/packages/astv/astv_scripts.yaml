@@ -431,7 +431,11 @@ script:
       - condition: template
         value_template: '{{ intent_context.data.media_record is not defined }}'
       then:
-      - stop: HA Media Player execution requires normalized media_record context
+      - action: persistent_notification.create
+        data:
+          title: ASTV - HA Media Player Engine
+          message: media_record is missing from intent_context.data
+      - stop: media_record is missing from intent_context.data
         error: true
     - action: script.advmedia_process_media_record
       data:

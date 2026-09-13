@@ -28,9 +28,10 @@ execution_context:
 ```
 
 All shown inner keys are required. Unused `data` and `endpoint` values remain
-present as empty objects. Select Execution Engine adapts this boundary to the
-existing downstream execution-engine interfaces until separately governed work
-changes them.
+present as empty objects. Select Execution Engine is a pure router on
+`execution_context.engine` and passes the three objects unchanged into the
+selected execution engine. Each execution engine owns its context extraction,
+engine-specific validation, and any adaptation at an external product boundary.
 
 ## Context
 
@@ -73,9 +74,10 @@ and leaves Select Intent Engine with one responsibility: family routing. The
 fixed context shape provides a predictable interface across Media and Routine
 while allowing family-specific data to evolve under `intent_context.data`.
 
-Keeping Select Execution Engine as a temporary adapter contains the breaking
-interface change within ASTV and preserves the established downstream engine
-interfaces and validation behaviour.
+Carrying the three-context structure through Select Execution Engine gives all
+three execution engines one consistent ASTV-owned interface. Keeping external
+adaptation in the engine that crosses the boundary preserves provider-owned
+contracts without coupling the selector to engine-specific requirements.
 
 ## Consequences / trade-offs
 
@@ -86,14 +88,18 @@ interfaces and validation behaviour.
   execution dispatch.
 - The internal dispatch contract changes incompatibly from v2 to v3, but both
   producers and the sole consumer change atomically.
-- Downstream engines continue to use their existing input names, so Select
-  Execution Engine temporarily owns the adapter mappings.
+- All three downstream engines receive `intent_context`, `target_context`, and
+  `execution_context`; their legacy inputs are not supported in parallel.
+- Select Execution Engine rejects only blank or unsupported routing keys.
+- Each selected engine validates and extracts its required values locally.
+- HA Media Player remains the ASTV-owned adaptation point into the unchanged
+  AdvMedia adapter contract.
 - The upstream intent-record input was subsequently renamed from `request` to
   `intent_record` under ASTV-203; `target_area` remains unchanged.
 
 ## Source Linear issue
 
-`ASTV-200`
+`ASTV-200`; extended through Phase 3 by `ASTV-204`
 
 ## Supersedes
 

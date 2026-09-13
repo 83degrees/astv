@@ -396,35 +396,47 @@ script:
     mode: parallel
     max: 10
     fields:
-      request:
-        name: Request
-        description: The UID object found for the scanned UID.
+      intent_context:
+        name: Intent Context
+        description: The original intent record and intent-family-specific data.
         required: true
         selector:
           object:
-      selected_endpoint:
-        name: Selected Endpoint
-        selector:
-          object:
-      execution_method:
-        name: Execution Method
-        description: The ASTV-selected execution method carried for normalized media context.
+      target_context:
+        name: Target Context
+        description: The resolved target area and selected endpoint.
         required: true
         selector:
-          text:
-      media_record:
-        name: Media Record
-        description: The complete normalized MediaCat returned record carried unchanged.
+          object:
+      execution_context:
+        name: Execution Context
+        description: The selected ASTV execution engine.
         required: true
         selector:
           object:
     sequence:
     - variables:
-        media_player_entity: '{{ selected_endpoint.media_entity }}'
+        media_player_entity: '{{ target_context.endpoint.media_entity | default('''', true) | string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ media_player_entity == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: ASTV - HA Media Player Engine
+          message: No valid HA Media Player endpoint was supplied for execution method 'ha_mplayer' in area '{{ target_context.area }}'.
+      - stop: No valid HA Media Player endpoint supplied
+        error: true
+    - if:
+      - condition: template
+        value_template: '{{ intent_context.data.media_record is not defined }}'
+      then:
+      - stop: HA Media Player execution requires normalized media_record context
+        error: true
     - action: script.astv_adapter_advmedia
       data:
-        media_record: '{{ media_record }}'
-        selected_execution_method: '{{ execution_method }}'
+        media_record: '{{ intent_context.data.media_record }}'
+        selected_execution_method: '{{ execution_context.engine }}'
         media_player: '{{ media_player_entity }}'
       response_variable: provider_payload_response
     - action: media_player.play_media
@@ -483,37 +495,46 @@ script:
     mode: parallel
     max: 10
     fields:
-      request:
-        name: Request
-        description: The complete ASTV request object.
+      intent_context:
+        name: Intent Context
+        description: The original intent record and intent-family-specific data.
         required: true
         selector:
           object:
-      selected_endpoint:
-        name: Selected Endpoint
-        description: The resolved Google Home device endpoint.
+      target_context:
+        name: Target Context
+        description: The resolved target area and selected endpoint.
         required: true
         selector:
           object:
-      execution_method:
-        name: Execution Method
-        description: The ASTV-selected execution method carried for normalized media
-          context.
-        required: true
-        selector:
-          text:
-      media_record:
-        name: Media Record
-        description: The complete normalized MediaCat returned record carried unchanged.
+      execution_context:
+        name: Execution Context
+        description: The selected ASTV execution engine.
         required: true
         selector:
           object:
     sequence:
+    - variables:
+        execution_method: '{{ execution_context.engine | default('''', true) | string | trim }}'
+        selected_endpoint: '{{ target_context.endpoint | default({}, true) }}'
     - if:
       - condition: template
-        value_template: '{{ execution_method is not defined or media_record is not defined }}'
+        value_template: '{{ intent_context.data.media_record is not defined }}'
       then:
-      - stop: Google Home Device execution requires normalized execution_method and media_record context
+      - stop: Google Home Device execution requires normalized media_record context
+        error: true
+    - variables:
+        media_record: '{{ intent_context.data.media_record }}'
+        endpoint_phrase: '{{ selected_endpoint.phrase | default('''', true) | string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ endpoint_phrase == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: ASTV - Google Home Device Engine
+          message: No valid Google Home Device endpoint was supplied for execution method 'g_home_device' in area '{{ target_context.area }}'.
+      - stop: No valid Google Home Device endpoint supplied
         error: true
     - variables:
         normalized_execution_methods: '{{ media_record.execution_methods | default({},
@@ -537,7 +558,6 @@ script:
         error: true
     - variables:
         assistant_source: '{{ selected_execution_data.source }}'
-        endpoint_phrase: '{{ selected_endpoint.phrase | default('''', true) }}'
     - if:
       - condition: template
         value_template: '{{ assistant_source.source_type | default('''', true) |
@@ -711,22 +731,51 @@ script:
     mode: parallel
     max: 10
     fields:
-      request:
-        name: Request
-        description: The complete ASTV request object.
+      intent_context:
+        name: Intent Context
+        description: The original intent record and intent-family-specific data.
         required: true
         selector:
           object:
-      target_area:
-        name: Target Area
-        description: The resolved Home Assistant area ID.
+      target_context:
+        name: Target Context
+        description: The resolved target area and selected endpoint.
         required: true
         selector:
-          text:
+          object:
+      execution_context:
+        name: Execution Context
+        description: The selected ASTV execution engine.
+        required: true
+        selector:
+          object:
     sequence:
+    - variables:
+        routine: '{{ intent_context.record.routine | default('''', true) | string | trim }}'
+        target_area: '{{ target_context.area | default('''', true) | string | trim }}'
+    - if:
+      - condition: template
+        value_template: '{{ routine == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: ASTV - Google Automation Engine
+          message: No valid routine was supplied for execution method 'g_automation' in area '{{ target_context.area }}'.
+      - stop: No valid routine supplied
+        error: true
+    - if:
+      - condition: template
+        value_template: '{{ target_area == '''' }}'
+      then:
+      - action: persistent_notification.create
+        data:
+          title: ASTV - Google Automation Engine
+          message: No valid target area was supplied for execution method 'g_automation' and routine '{{ routine }}'.
+      - stop: No valid target area supplied
+        error: true
     - action: script.astv_find_routine_trigger
       data:
-        routine: '{{ request.routine }}'
+        routine: '{{ routine }}'
         target_area: '{{ target_area }}'
       response_variable: trigger_response
     - if:
@@ -736,8 +785,8 @@ script:
       - action: notify.persistent_notification
         data:
           title: ASTV - Google Automation Engine
-          message: No Google automation trigger was found for routine '{{ request.routine
-            }}' in area '{{ target_area }}'.
+          message: No Google automation trigger was found for routine '{{ routine }}'
+            in area '{{ target_area }}'.
       - stop: No routine trigger found
         error: true
     - action: input_boolean.turn_on
@@ -836,107 +885,43 @@ script:
           object:
     sequence:
     - variables:
-        resolved_execution_method: '{{ execution_context.engine | default('''', true) | string
-          | trim }}'
-        resolved_selected_endpoint: '{{ target_context.endpoint | default({}, true) }}'
-        resolved_target_area: '{{ target_context.area | default('''', true) | string | trim
-          }}'
+        execution_engine: '{{ execution_context.engine | default('''', true) | string | trim }}'
     - choose:
       - alias: HA Media Player
         conditions:
         - condition: template
-          value_template: '{{ resolved_execution_method == ''ha_mplayer'' }}'
+          value_template: '{{ execution_engine == ''ha_mplayer'' }}'
         sequence:
-        - if:
-          - condition: template
-            value_template: '{{ resolved_selected_endpoint.media_entity | default('''',
-              true) | string | trim == '''' }}'
-          then:
-          - action: persistent_notification.create
-            data:
-              title: ASTV - Select Execution Engine
-              message: No valid HA Media Player endpoint was supplied for execution
-                method 'ha_mplayer' in area '{{ target_context.area }}'.
-          - stop: No valid HA Media Player endpoint supplied
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ intent_context.data.media_record is not defined }}'
-          then:
-          - stop: HA Media Player execution requires normalized media_record context
-            error: true
         - action: script.astv_ha_mplayer_engine
           data:
-            request: '{{ intent_context.record }}'
-            selected_endpoint: '{{ resolved_selected_endpoint }}'
-            execution_method: '{{ execution_context.engine }}'
-            media_record: '{{ intent_context.data.media_record }}'
+            intent_context: '{{ intent_context }}'
+            target_context: '{{ target_context }}'
+            execution_context: '{{ execution_context }}'
       - alias: Google Home Device
         conditions:
         - condition: template
-          value_template: '{{ resolved_execution_method == ''g_home_device'' }}'
+          value_template: '{{ execution_engine == ''g_home_device'' }}'
         sequence:
-        - if:
-          - condition: template
-            value_template: '{{ resolved_selected_endpoint.phrase | default('''', true)
-              | string | trim == '''' }}'
-          then:
-          - action: persistent_notification.create
-            data:
-              title: ASTV - Select Execution Engine
-              message: No valid Google Home Device endpoint was supplied for execution
-                method 'g_home_device' in area '{{ target_context.area }}'.
-          - stop: No valid Google Home Device endpoint supplied
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ intent_context.data.media_record is not defined }}'
-          then:
-          - stop: Google Home Device execution requires normalized media_record context
-            error: true
         - action: script.astv_g_home_device_engine
           data:
-            request: '{{ intent_context.record }}'
-            selected_endpoint: '{{ resolved_selected_endpoint }}'
-            execution_method: '{{ execution_context.engine }}'
-            media_record: '{{ intent_context.data.media_record }}'
+            intent_context: '{{ intent_context }}'
+            target_context: '{{ target_context }}'
+            execution_context: '{{ execution_context }}'
       - alias: Google Automation
         conditions:
         - condition: template
-          value_template: '{{ resolved_execution_method == ''g_automation'' }}'
+          value_template: '{{ execution_engine == ''g_automation'' }}'
         sequence:
-        - if:
-          - condition: template
-            value_template: '{{ intent_context.record.routine | default('''', true) | string | trim
-              == '''' }}'
-          then:
-          - action: persistent_notification.create
-            data:
-              title: ASTV - Select Execution Engine
-              message: No valid routine was supplied for execution method 'g_automation'
-                in area '{{ target_context.area }}'.
-          - stop: No valid routine supplied
-            error: true
-        - if:
-          - condition: template
-            value_template: '{{ resolved_target_area == '''' }}'
-          then:
-          - action: persistent_notification.create
-            data:
-              title: ASTV - Select Execution Engine
-              message: No valid target area was supplied for execution method 'g_automation'
-                and routine '{{ intent_context.record.routine }}'.
-          - stop: No valid target area supplied
-            error: true
         - action: script.astv_g_automation_engine
           data:
-            request: '{{ intent_context.record }}'
-            target_area: '{{ target_context.area }}'
+            intent_context: '{{ intent_context }}'
+            target_context: '{{ target_context }}'
+            execution_context: '{{ execution_context }}'
       default:
       - action: persistent_notification.create
         data:
           title: ASTV - Select Execution Engine
-          message: Unsupported or blank execution method '{{ resolved_execution_method
+          message: Unsupported or blank execution method '{{ execution_engine
             }}' for area '{{ target_context.area }}'.
       - stop: Unsupported or blank execution method
         error: true

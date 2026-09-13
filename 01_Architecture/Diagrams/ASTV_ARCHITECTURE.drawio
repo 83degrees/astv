@@ -438,7 +438,7 @@
         <mxCell id="terminal-ha-media-player" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontColor=#000000;" value="&lt;b&gt;HA Media Player&lt;/b&gt;&lt;div&gt;media_player.play_media&lt;/div&gt;" vertex="1">
           <mxGeometry height="70" width="190" x="1689" y="294" as="geometry" />
         </mxCell>
-        <mxCell id="gateway_split_command_builder" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rhombus;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" value="Select Command Builder?" vertex="1">
+        <mxCell id="gateway_split_command_builder" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rhombus;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" value="Intent Family?" vertex="1">
           <mxGeometry height="50" width="50" x="643" y="1879" as="geometry" />
         </mxCell>
         <mxCell id="gateway_merge_command_builder" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rhombus;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" value="" vertex="1">
@@ -469,7 +469,7 @@
         <mxCell id="edge-split-to-cmd-builder-media" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="gateway_split_command_builder" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="astv-cmd-builder-media">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="label-command-builder-outcome-media" connectable="0" parent="edge-split-to-cmd-builder-media" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#d5e8d4;labelBorderColor=#82b366;" value="Media" vertex="1">
+        <mxCell id="label-command-builder-outcome-media" connectable="0" parent="edge-split-to-cmd-builder-media" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#d5e8d4;labelBorderColor=#82b366;" value="media" vertex="1">
           <mxGeometry relative="1" x="-0.65" as="geometry">
             <mxPoint x="20" as="offset" />
           </mxGeometry>
@@ -547,6 +547,9 @@
         <mxCell id="astv-g-home-device-engine" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="&lt;b&gt;Google Home Device Engine&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;script.astv_g_home_device_engine&lt;/span&gt;" vertex="1">
           <mxGeometry height="70" width="260" x="772" y="1465" as="geometry" />
         </mxCell>
+        <mxCell id="gateway-select-google-provider" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rhombus;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1" value="Provider?" vertex="1">
+          <mxGeometry height="50" width="50" x="877" y="1575" as="geometry" />
+        </mxCell>
         <mxCell id="edge-playback-to-google-home" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="decision-playback-engine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#6c8ebf;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" target="astv-g-home-device-engine">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
@@ -576,31 +579,54 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="astv-provider-g-assist" parent="AlRS6Nxp4NqdQ7xusg6v-6" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontColor=#000000;" value="&lt;b&gt;ASTV - Provider: Google Assist&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;script.astv_provider_g_assist&lt;/span&gt;" vertex="1">
-          <mxGeometry height="70" width="260" x="772" y="1675" as="geometry" />
+          <mxGeometry height="70" width="260" x="772" y="1725" as="geometry" />
         </mxCell>
-        <mxCell id="edge-google-engine-to-g-assist" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-g-home-device-engine" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=0.25;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="astv-provider-g-assist">
+        <mxCell id="edge-google-engine-to-provider-gateway" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-g-home-device-engine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gateway-select-google-provider">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="label-google-assist-input-intent" connectable="0" parent="edge-google-engine-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="assistant_source" vertex="1">
+        <mxCell id="label-google-provider-routing-value" connectable="0" parent="edge-google-engine-to-provider-gateway" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="source.provider" vertex="1">
           <mxGeometry relative="1" y="-8" as="geometry">
-            <mxPoint x="7" y="-49" as="offset" />
+            <mxPoint x="-89" y="-5" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-google-assist-input-endpoint" connectable="0" parent="edge-google-engine-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="endpoint_phrase" vertex="1">
+        <mxCell id="edge-provider-gateway-to-g-assist" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="gateway-select-google-provider" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="astv-provider-g-assist">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label-google-provider-outcome" connectable="0" parent="edge-provider-gateway-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#d5e8d4;labelBorderColor=#82b366;" value="Google Assistant&lt;br&gt;(google_assistant)" vertex="1">
           <mxGeometry relative="1" y="-8" as="geometry">
-            <mxPoint x="7" y="-1" as="offset" />
+            <mxPoint x="-112" y="-12" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-google-assist-input-intent" connectable="0" parent="edge-provider-gateway-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent" vertex="1">
+          <mxGeometry relative="1" y="-8" as="geometry">
+            <mxPoint x="69" y="-38" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-google-assist-input-source" connectable="0" parent="edge-provider-gateway-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="source" vertex="1">
+          <mxGeometry relative="1" y="-8" as="geometry">
+            <mxPoint x="73" y="-8" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="label-google-assist-input-endpoint" connectable="0" parent="edge-provider-gateway-to-g-assist" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="endpoint_phrase" vertex="1">
+          <mxGeometry relative="1" y="-8" as="geometry">
+            <mxPoint x="104" y="22" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="edge-g-assist-to-google-engine" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-provider-g-assist" style="edgeStyle=none;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 8;strokeColor=#82b366;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" target="astv-g-home-device-engine">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="label-g-assist-return" connectable="0" parent="edge-g-assist-to-google-engine" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="provider_command_response" vertex="1">
+        <mxCell id="label-g-assist-return" connectable="0" parent="edge-g-assist-to-google-engine" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="provider_response" vertex="1">
           <mxGeometry relative="1" y="-8" as="geometry">
-            <mxPoint x="-4" y="48" as="offset" />
+            <mxPoint x="104" y="6" as="offset" />
           </mxGeometry>
         </mxCell>
         <mxCell id="edge-g-assist-to-split" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-provider-g-assist" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#82b366;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="gateway_split_command_builder">
           <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="label-g-assist-intent-family" connectable="0" parent="edge-g-assist-to-split" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="intent_family" vertex="1">
+          <mxGeometry relative="1" y="-8" as="geometry">
+            <mxPoint x="7" y="-12" as="offset" />
+          </mxGeometry>
         </mxCell>
         <mxCell id="edge-command-builder-merge-to-g-assist" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="gateway_merge_command_builder" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 8;strokeColor=#82b366;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="astv-provider-g-assist">
           <mxGeometry relative="1" as="geometry" />
@@ -611,7 +637,7 @@
         <mxCell id="edge-google-engine-to-terminal" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="astv-g-home-device-engine" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=block;endFill=1;strokeColor=#9673a6;shape=flexArrow;fillColor=#e1d5e7;" target="terminal-google-sdk-media">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="label-google-engine-command" connectable="0" parent="edge-google-engine-to-terminal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="provider_command_response.command" vertex="1">
+        <mxCell id="label-google-engine-command" connectable="0" parent="edge-google-engine-to-terminal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="provider_response.command" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="105" y="-58" as="offset" />
           </mxGeometry>

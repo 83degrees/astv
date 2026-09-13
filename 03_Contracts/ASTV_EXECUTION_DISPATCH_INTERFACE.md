@@ -7,8 +7,8 @@
 | Owner | ASTV |
 | Producers | `script.astv_intent_engine_media` and `script.astv_intent_engine_routine` |
 | Consumers | `script.astv_select_execution_engine`, `script.astv_ha_mplayer_engine`, `script.astv_g_home_device_engine`, and `script.astv_g_automation_engine` |
-| Interface version | `4.0.0` |
-| Change authority | [ASTV-204](https://linear.app/83degrees/issue/ASTV-204/push-three-context-dispatch-through-astv-execution-engines) |
+| Interface version | `4.1.0` |
+| Change authority | [ASTV-208](https://linear.app/83degrees/issue/ASTV-208/restore-provider-routing-and-generic-command-builder-boundary-for) |
 | Source path | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` |
 
 ## Purpose
@@ -21,8 +21,9 @@ it is not a producer or adapter at this boundary.
 
 The execution selector is a pure router. It routes only on
 `execution_context.engine` and passes all three context objects unchanged to
-the selected Phase 3 execution engine. Each execution engine extracts and
-validates the context it needs and adapts it at any external product boundary.
+the selected Phase 3 execution engine. Each execution engine uses the context
+it needs and owns its downstream orchestration, including applicable validation
+and adaptation at any external product boundary.
 
 ## Required Interface
 
@@ -119,10 +120,11 @@ execution-engine inputs.
 
 ### `g_home_device`
 
-- The Google Home Device Engine requires a non-blank
-  `target_context.endpoint.phrase` and
-  `intent_context.data.media_record`.
-- It extracts its normalized media and endpoint values locally.
+- The Google Home Device Engine requires
+  `intent_context.data.media_record` and reads the selected source through
+  `execution_context.engine`.
+- It selects the provider from `source.provider`; the selected generic command
+  builder determines whether `target_context.endpoint.phrase` must be non-blank.
 
 ### `g_automation`
 
@@ -133,8 +135,9 @@ execution-engine inputs.
 
 A blank or unsupported `execution_context.engine` creates the existing visible
 failure in the selector. Engine-specific validation and failure handling occur
-inside the selected engine before it crosses an external boundary. These
-ownership changes do not introduce automatic retry or fallback.
+inside the selected engine or its selected ASTV-owned helper before an external
+boundary is crossed. These ownership rules do not introduce automatic retry or
+fallback.
 
 ## Compatibility Assessment
 
@@ -144,13 +147,27 @@ from version 3, but it now continues unchanged through the selector into each
 Phase 3 engine. All affected producers and consumers are ASTV-owned and change
 atomically under ASTV-204.
 
-No declared external consumer uses this internal contract. The MediaCat and
-AdvMedia provider-owned contracts listed in `00_Governance/PROJECT_PROFILE.md`
-remain separate authorities. The HA Media Player Engine remains the ASTV-owned
-adaptation point and calls the AdvMedia direct core without an intermediate
-ASTV adapter; Google provider and helper interfaces are unchanged.
+No declared external consumer uses this internal contract. Version 4.1 retains
+the complete version 4 three-context shape and relaxes no producer requirement:
+media selection still supplies an endpoint object. It clarifies that command
+construction, including conditional endpoint-phrase validity, belongs to the
+selected ASTV command builder. The MediaCat and AdvMedia provider-owned
+contracts listed in `00_Governance/PROJECT_PROFILE.md` remain separate and
+unchanged. The HA Media Player Engine remains the ASTV-owned adaptation point
+and calls the AdvMedia direct core without an intermediate ASTV adapter. The
+Google provider helper change is ASTV-internal and changes atomically with its
+sole caller.
 
 ## Version History
+
+### `4.1.0` — Google Home provider and command-builder responsibility
+
+- Preserved the complete three-context dispatch shape and Phase 3 mappings.
+- Clarified that the Google Home Device Engine selects the provider from the
+  selected source.
+- Moved command and conditional endpoint-phrase validation responsibility to
+  the selected ASTV command builder.
+- Confirmed that no failure introduces automatic retry or fallback.
 
 ### `4.0.0` — shared Phase 3 execution-engine context
 

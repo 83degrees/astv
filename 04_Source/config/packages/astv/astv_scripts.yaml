@@ -68,7 +68,13 @@ script:
     - variables:
         endpoints: !include ../../assistive/astv_area_endpoints2.yaml
     - variables:
-        area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
+        area_domain_response: "{{\
+  endpoints\
+  .get(area, {})\
+  .get('playback',\
+          {})\
+  .get(domain, {})\
+}}"
     - stop: Area playback domain endpoints found
       response_variable: area_domain_response
 
@@ -344,8 +350,12 @@ script:
     - variables:
         available_source_names: '{{ available_sources.keys() | list }}'
     - variables:
-        matching_sources: "{{\n  preferences\n  | select('in', available_source_names)\n
-          \ | list\n}}"
+        matching_sources: "{{\
+  preferences\
+  | select('in', available_source_names)\
+
+          \\ | list\
+}}"
     - variables:
         playback_method_response:
           selected_source: '{{ matching_sources | first }}'
@@ -431,7 +441,11 @@ script:
       - condition: template
         value_template: '{{ intent_context.data.media_record is not defined }}'
       then:
-      - stop: HA Media Player execution requires normalized media_record context
+      - action: persistent_notification.create
+        data:
+          title: ASTV - HA Media Player Engine
+          message: media_record is missing from intent_context.data
+      - stop: media_record is missing from intent_context.data
         error: true
     - action: script.advmedia_process_media_record
       data:
@@ -646,8 +660,11 @@ script:
     sequence:
     - variables:
         command_response:
-          command: "{{ (phrase | trim)\n   ~ (' on ' ~ (endpoint_phrase | trim)\n      if
-            (append_target | bool)\n      else '') }}"
+          command: "{{ (phrase | trim)\
+   ~ (' on ' ~ (endpoint_phrase | trim)\
+      if
+            (append_target | bool)\
+      else '') }}"
     - stop: Media command built
       response_variable: command_response
   astv_find_routine_trigger:
@@ -671,8 +688,13 @@ script:
     sequence:
     - variables:
         routine_label: routine_{{ routine }}
-        matching_triggers: "{{\n  area_entities(target_area)\n  | select('in', label_entities(routine_label))\n
-          \ | select('in', label_entities('matter_gh_trigger'))\n  | list\n}}"
+        matching_triggers: "{{\
+  area_entities(target_area)\
+  | select('in', label_entities(routine_label))\
+
+          \\ | select('in', label_entities('matter_gh_trigger'))\
+  | list\
+}}"
     - variables:
         trigger_response:
           entity_id: '{{ matching_triggers | first if matching_triggers | count == 1

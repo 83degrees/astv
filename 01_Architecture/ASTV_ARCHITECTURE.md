@@ -14,16 +14,19 @@ they remain in YAML.
 
 ## Architecture Status and Timeframes
 
-The end-to-end flow and phase descriptions below are **current production**.
-The normalized MediaCat media flow became current after `ASTV-65` proof at
-`2026-08-24T20:09:37.490Z` and was reverified through read-only live Home
+The end-to-end flow and phase descriptions below are **current production**
+except for the HA Media Player Engine caller topology changed by ASTV-206. That
+topology is the **approved target** until the candidate is deployed and verified:
+the engine calls the AdvMedia core directly and the former ASTV adapter is
+retired. The normalized MediaCat media flow became current after `ASTV-65` proof
+at `2026-08-24T20:09:37.490Z` and was reverified through read-only live Home
 Assistant configuration inspection on 2026-08-25.
 
-The active `Diagrams/ASTV_ARCHITECTURE.drawio` file is the verified post-cutover
-current-production visual updated under `ASTV-78`, with SHA-256
+The active `Diagrams/ASTV_ARCHITECTURE.drawio` incorporates the ASTV-206
+approved-target caller topology. The preceding post-cutover current-production
+visual was accepted under `ASTV-78`, with SHA-256
 `AF97914C1EBB7187F7DA1966E94C9165F57148735FC57D06A4BD36384004315E`.
-Its static and structural validation and final user review at normal and
-overview zoom were completed and accepted under `ASTV-78`. The exact original
+That hash is historical after the ASTV-206 diagram change. The exact original
 pre-change visual remains recoverable from Git history at the T1 baseline path
 `01_Architecture/Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
 
@@ -42,9 +45,10 @@ records, the schema-v3 MediaCat lookup, and both consumers coherently.
 The live definitions still contain several no-`media_record` pre-cutover
 branches. They are retained implementation history, not the current media
 interface or a promised fallback: all active media records select the normalized
-branch. `ASTV-76` also removed the v1 shape from the ASTV AdvMedia adapter, so
-the retained Handle Provider AdvMedia call no longer matches that boundary. The
-only current ASTV-to-AdvMedia boundary is normalized v2. `ASTV-200` replaced the
+branch. `ASTV-76` also removed the v1 shape from the former ASTV AdvMedia adapter,
+so the retained Handle Provider AdvMedia call no longer matches that boundary.
+The ASTV-206 approved target for the ASTV-to-AdvMedia boundary is the normalized
+v2 direct-core call from the HA Media Player Engine. `ASTV-200` replaced the
 internal Phase 2-to-Phase 3 handoff with the fixed three-context dispatch
 interface described below. `ASTV-204` carries that interface unchanged through
 the selector into all three execution engines. The durable rationale is
@@ -318,41 +322,26 @@ The dispatcher returns no common data response.
   - `target_context`
   - `execution_context`
 - Calls
-  `script.astv_adapter_advmedia` directly with:
+  `script.advmedia_process_media_record` directly with:
   - complete `media_record`, extracted from `intent_context`
   - `selected_execution_method`, extracted from `execution_context`
   - selected `media_player`
-- Captures the provider result as:
-  - `provider_payload_response`
+- Captures the complete AdvMedia result as:
+  - `advmedia_response`
+- Consumes only:
+  - `advmedia_response.playback_payload`
 - Terminal action:
   - `media_player.play_media`
 
 The engine extracts and validates the selected media-player entity and
-normalized media record from the shared contexts. It then adapts those ASTV
-values into the unchanged `ASTV - Adapter: AdvMedia` contract. An adapter or
-AdvMedia failure does not trigger an alternative execution path.
+normalized media record from the shared contexts. It supplies the complete
+record, selected method, and selected player directly to the AdvMedia core,
+which performs no catalogue lookup. An AdvMedia failure does not trigger an
+alternative execution path.
 
-#### ASTV - Adapter: AdvMedia
-
-- Entity: `script.astv_adapter_advmedia`
-- Inputs from the HA Media Player engine:
-  - complete `media_record`
-  - `selected_execution_method`
-  - `media_player`
-- Optional:
-  - `media_profile`
-- Adapter return:
-  - `payload_response`
-
-The adapter calls `script.advmedia_process_media_record` exactly once with the
-complete normalized record, selected method, player, and optional profile. It
-contains no catalogue lookup, method or endpoint selection, fallback, or call to
-`script.advmedia_prepare_playback`.
-
-The external subsystem returns `advmedia_response` to the adapter.
-`advmedia_response` is the subsystem result; `payload_response` is the adapter
-result consumed by the HA Media Player engine under its separately named caller
-capture variable. These names are distinct and must not be normalised.
+The external subsystem returns the complete contracted `advmedia_response` to
+the engine. The engine consumes only its `playback_payload` field for the
+terminal action; it does not narrow or redefine the AdvMedia return contract.
 
 The AdvMedia subsystem is an external boundary. Its internal preparation
 scripts, record lookup, profile handlers, and provider-specific implementation
@@ -378,7 +367,7 @@ media record selects this branch after ASTV-65.
 
 This component is not part of the current production media flow. Its retained
 AdvMedia outcome still supplies the retired `media_catalogue` / `media_item_id`
-shape to the now v2-only adapter, so it is not a supported fallback path.
+shape to the deleted adapter entity, so it is not a supported fallback path.
 
 ##### Retained Radio Browser Provider
 
@@ -596,7 +585,7 @@ bytes are the accepted current-production visual completed and reviewed under
 | `astv_intent_catalogue.yaml` | Data source | Find Intent Record lookup using `lookup_intent_id`; result `intent_record_response` |
 | `astv_area_endpoints2.yaml` | Data source | Find Area Domain Endpoints |
 | Home Assistant metadata / registry | Dynamic data source | Find Routine Trigger |
-| AdvMedia subsystem | External subsystem | Reached through ASTV - Adapter: AdvMedia |
+| AdvMedia subsystem | External subsystem | Reached directly by ASTV - HA Media Player Engine through `script.advmedia_process_media_record` |
 | `media_player.play_media` | External action | HA Media Player Engine |
 | `google_assistant_sdk.send_text_command` | External action | Google Home Device Engine |
 | Matter-exposed `input_boolean` | External/Home Assistant entity | Turned on by Google Automation Engine |
@@ -617,7 +606,6 @@ Exact verified names must be preserved. In particular:
 - `playback_method_response`
 - `area_playback_endpoint_response`
 - `provider_payload_response`
-- `payload_response`
 - `advmedia_response`
 - `command_response`
 - `provider_command_response`
@@ -626,7 +614,10 @@ Exact verified names must be preserved. In particular:
 - `target_context`
 - `execution_context`
 
-A caller's `response_variable` name describes how that caller captures a result. A child's returned payload name describes the child's own interface. Do not rename either for visual or documentary consistency, and do not collapse names across adapter/provider boundaries.
+A caller's `response_variable` name describes how that caller captures a result.
+A child's returned payload name describes the child's own interface. Do not
+rename either for visual or documentary consistency, and do not collapse names
+across provider or subsystem boundaries.
 
 ## Retained Historical and Excluded Components
 

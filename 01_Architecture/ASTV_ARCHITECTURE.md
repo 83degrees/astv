@@ -387,40 +387,44 @@ shape to the deleted adapter entity, so it is not a supported fallback path.
   - `execution_context`
 - Reads only
   `intent_context.data.media_record.execution_methods[execution_context.engine].source`,
-  validates the endpoint phrase locally along with the
-  `assistant_command` source and `google_assistant` provider, and calls
-  `script.astv_provider_g_assist` with:
-  - `assistant_source`
+  then selects a provider through an exclusive route on `source.provider`.
+- Current implemented provider outcome:
+  - `Google Assistant` (`google_assistant`)
+- The Google Assistant route calls `script.astv_provider_g_assist` with:
+  - `intent`, from `intent_context.record.intent`
+  - `source`
   - `endpoint_phrase`
-- A missing media record, unusable selected source, unsupported provider,
-  missing command, or unusable endpoint phrase stops explicitly
-  before the terminal action.
+- A missing media record or unsupported provider stops explicitly before the
+  terminal action. Source command and conditional endpoint validity belong to
+  the selected command builder rather than this engine.
 - Captures the provider result as:
-  - `provider_command_response`
+  - `provider_response`
 - Terminal action:
   - `google_assistant_sdk.send_text_command`
 - Command source:
-  - `provider_command_response.command`
+  - `provider_response.command`
 
-This branch does not output to a Home Assistant media player. The normalized
-branch reaches the one Google Assistant SDK action. The live definition retains
-a pre-cutover no-context branch that supplies `intent`, `request_object`, and
-`endpoint_phrase` to the provider, but no active media record selects it.
+This branch does not output to a Home Assistant media player. The selected
+provider returns its command-builder response unchanged, and the engine owns
+the one terminal Google Assistant SDK action. A failure does not trigger another
+provider or execution method.
 
 #### ASTV - Provider: Google Assist
 
 - Entity: `script.astv_provider_g_assist`
-- Current input shape:
-  - `assistant_source`
-  - `endpoint_phrase`
-- Retained pre-cutover input shape (historical / inactive):
+- Inputs:
   - `intent`
-  - `request_object`
+  - `source`
   - `endpoint_phrase`
 - Return to Google Home Device Engine:
-  - `provider_command_response`
-- Command-builder split: `Select Command Builder?`
-- Current implemented outcome: `Media`
+  - `provider_response`
+- Derives the command-builder family from the portion of `intent` before the
+  first `.`.
+- Command-builder split: `Intent Family?`
+- Current implemented outcome: `media`
+- Unsupported intent families stop explicitly.
+- The provider selects the builder but does not validate or construct its
+  command. It returns the selected builder response unchanged.
 
 ##### ASTV - Command Builder: Media
 
@@ -430,6 +434,12 @@ a pre-cutover no-context branch that supplies `intent`, `request_object`, and
   - `append_target`
   - `endpoint_phrase`
 - Return: `command_response`
+
+The Media command builder is provider-agnostic. It owns final command
+construction, rejects a blank `phrase`, requires a non-blank `endpoint_phrase`
+only when `append_target` is true, and otherwise preserves supplied phrase and
+endpoint values without trimming or normalization. When requested, it joins
+the values with the exact text ` on `.
 
 The command-builder exclusive split and merge gateways represent control flow only. They are not scripts or functions, and the merge does not transform `command_response` or imply a consolidator.
 
@@ -538,9 +548,13 @@ final `media_player.play_media` call.
 
 For `g_home_device`, ASTV carries the complete record, selected method, and
 selected assistant endpoint through its own execution branch. It reads the
-selected method's `assistant_command` source facts, validates the provider,
-constructs the final command, appends the independently selected target phrase
-when directed, and invokes `google_assistant_sdk.send_text_command` directly.
+selected method's source, uses `source.provider` to select Google Assist, and
+passes the ASTV intent, complete selected source, and endpoint phrase to that
+provider. Google Assist derives the intent family and selects the generic Media
+command builder. The builder alone constructs the final phrase and conditionally
+appends the independently selected endpoint phrase. The provider returns that
+builder response unchanged, and the Google Home Device Engine invokes
+`google_assistant_sdk.send_text_command` with its `command` field.
 
 This branch does not call AdvMedia and has no media-player profile. MediaCat
 supplies item-specific source facts but does not select the endpoint, construct the
@@ -608,7 +622,7 @@ Exact verified names must be preserved. In particular:
 - `provider_payload_response`
 - `advmedia_response`
 - `command_response`
-- `provider_command_response`
+- `provider_response`
 - `trigger_response`
 - `intent_context`
 - `target_context`
@@ -632,8 +646,7 @@ future:
 - `script.astv_provider_radiobrowser`
 - the no-`media_record` branch in `script.astv_intent_engine_media`
 - the no-context media branches in `script.astv_select_execution_engine`,
-  `script.astv_ha_mplayer_engine`, and `script.astv_g_home_device_engine`
-- the legacy input branch in `script.astv_provider_g_assist`
+  and `script.astv_ha_mplayer_engine`
 
 Their presence in live configuration does not make them part of the current
 ASTV flow. In particular, the retained Handle Provider AdvMedia call uses

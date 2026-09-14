@@ -265,6 +265,23 @@ script:
         domain: '{{ intent_record.params.output.domain }}'
         area: '{{ target_area }}'
       response_variable: area_domain_response
+    - if:
+      - condition: template
+        value_template: >-
+          {{
+            area_domain_response | default({}, true) | count == 0
+            or
+            area_domain_response.preference | default([], true) | count == 0
+          }}
+      then:
+      - action: notify.persistent_notification
+        data:
+          title: ASTV - Missing Playback Configuration
+          message: >-
+            No usable {{ intent_record.params.output.domain }} playback configuration
+            was found for area '{{ target_area }}'.
+      - stop: No usable area/domain playback configuration
+        error: true
     - action: script.astv_resolve_playback_method
       metadata: {}
       data:
@@ -346,6 +363,20 @@ script:
     - variables:
         matching_sources: "{{\n  preferences\n  | select('in', available_source_names)\n
           \ | list\n}}"
+    - if:
+      - condition: template
+        value_template: '{{ matching_sources | count == 0 }}'
+      then:
+      - action: notify.persistent_notification
+        data:
+          title: ASTV - No Compatible Playback Method
+          message: >-
+            None of the configured playback preferences
+            {{ preferences }}
+            are available from the media record execution methods
+            {{ available_source_names }}.
+      - stop: No compatible playback method
+        error: true
     - variables:
         playback_method_response:
           selected_source: '{{ matching_sources | first }}'

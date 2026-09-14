@@ -157,7 +157,7 @@ script:
       - condition: template
         value_template: '{{ tag_record_response | default({}, true) | count == 0 }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: No Tag Record Found
           message: 'No tag record found for UID:
@@ -170,7 +170,7 @@ script:
         value_template: '{{ tag_record_response.intent_id | default('''', true) | string
           | trim == '''' }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: Invalid Tag Record
           message: 'Tag record for UID ''{{ uid }}'' has no valid intent_id.
@@ -183,7 +183,7 @@ script:
         tag_intent_id: '{{ tag_record_response.intent_id | string | trim }}'
         tag_area_override: '{{ tag_record_response.area_override | default('''', true)
           | string | trim }}'
-    - action: persistent_notification.create
+    - action: notify.persistent_notification
       data:
         title: Tag Record Found
         message: 'UID: {{ uid }}
@@ -230,7 +230,7 @@ script:
         - condition: template
           value_template: '{{ (catalogue_id != '''') != (item_id != '''') }}'
         sequence:
-        - action: persistent_notification.create
+        - action: notify.persistent_notification
           data:
             title: Incomplete MediaCat Reference
             message: 'Media intent ''{{ intent_record.title | default(''(untitled)'', true)
@@ -248,7 +248,7 @@ script:
         - condition: template
           value_template: '{{ catalogue_id == '''' and item_id == '''' }}'
         sequence:
-        - action: persistent_notification.create
+        - action: notify.persistent_notification
           data:
             title: Missing MediaCat Reference
             message: 'Media intent ''{{ intent_record.title | default(''(untitled)'', true) }}'' supplied no MediaCat catalogue_id/item_id.'
@@ -421,7 +421,7 @@ script:
       - condition: template
         value_template: '{{ media_player_entity == '''' }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - HA Media Player Engine
           message: No valid HA Media Player endpoint was supplied for execution method 'ha_mplayer' in area '{{ target_context.area }}'.
@@ -431,7 +431,7 @@ script:
       - condition: template
         value_template: '{{ intent_context.data.media_record is not defined }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - HA Media Player Engine
           message: media_record is missing from intent_context.data
@@ -477,7 +477,7 @@ script:
       - condition: template
         value_template: '{{ intent_context.data.media_record is not defined }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - Google Home Device Engine
           message: media_record is missing from intent_context.data
@@ -721,7 +721,7 @@ script:
         value_template: '{{ intent_record_response | default({}, true) | count == 0
           }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: No Intent Record Found
           message: 'No record found for intent ID:
@@ -743,7 +743,7 @@ script:
       - condition: template
         value_template: '{{ target_area == '''' }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: No Target Area Resolved
           message: 'No target area was resolved for intent ID:
@@ -815,7 +815,7 @@ script:
             target_context: '{{ target_context }}'
             execution_context: '{{ execution_context }}'
       default:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - Select Execution Engine
           message: Unsupported or blank execution method '{{ execution_engine

@@ -14,45 +14,16 @@ they remain in YAML.
 
 ## Architecture Status and Timeframes
 
-The end-to-end flow and phase descriptions below are **current production**
-except for the HA Media Player Engine caller topology changed by ASTV-206. That
-topology is the **approved target** until the candidate is deployed and verified:
-the engine calls the AdvMedia core directly and the former ASTV adapter is
-retired. The normalized MediaCat media flow became current after `ASTV-65` proof
-at `2026-08-24T20:09:37.490Z` and was reverified through read-only live Home
-Assistant configuration inspection on 2026-08-25.
+The end-to-end flow and phase descriptions below describe the current approved
+ASTV architecture. The normalized MediaCat media flow is current, and the HA
+Media Player Engine calls the AdvMedia core directly through the provider-owned
+AdvMedia interface. Historical migration states remain recoverable through
+Linear and Git history and are not described here as current architecture.
 
-The active `Diagrams/ASTV_ARCHITECTURE.drawio` incorporates the ASTV-206
-approved-target caller topology. The preceding post-cutover current-production
-visual was accepted under `ASTV-78`, with SHA-256
-`AF97914C1EBB7187F7DA1966E94C9165F57148735FC57D06A4BD36384004315E`.
-That hash is historical after the ASTV-206 diagram change. The exact original
-pre-change visual remains recoverable from Git history at the T1 baseline path
-`01_Architecture/Archive/ASTV_Architecture_pre_ASTV-78_2026-08-25.drawio`.
-
-The normalized flow is defined by the applicable provider-owned contracts
-recorded in `00_Governance/PROJECT_PROFILE.md`. `ASTV-60` installed the
-compatibility-safe MediaCat lookup and selection branch inside
-`script.astv_intent_engine_media`. `ASTV-61` installed the conditional
-five-field handoff through Select Intent Engine and Select Execution Engine and
-the receiving declarations on both media engines. `ASTV-62` installed the HA
-Media Player consumer and transitional dual-shape AdvMedia adapter, and
-`ASTV-63` installed the Google Home Device consumer and dual-shape Google Assist
-provider. `ASTV-64` prepared and non-live tested the replacement catalogue and
-byte-identical rollback bundle. `ASTV-65` activated all seven normalized media
-records, the schema-v3 MediaCat lookup, and both consumers coherently.
-
-The live definitions still contain several no-`media_record` pre-cutover
-branches. They are retained implementation history, not the current media
-interface or a promised fallback: all active media records select the normalized
-branch. `ASTV-76` also removed the v1 shape from the former ASTV AdvMedia adapter,
-so the retained Handle Provider AdvMedia call no longer matches that boundary.
-The ASTV-206 approved target for the ASTV-to-AdvMedia boundary is the normalized
-v2 direct-core call from the HA Media Player Engine. `ASTV-200` replaced the
-internal Phase 2-to-Phase 3 handoff with the fixed three-context dispatch
-interface described below. `ASTV-204` carries that interface unchanged through
-the selector into all three execution engines. The durable rationale is
-recorded in `DDR-01-001`.
+The current normalized flow is governed by the provider-owned contracts
+recorded in `00_Governance/PROJECT_PROFILE.md`, the ASTV execution-dispatch
+contract, and `DDR-01-001` for the fixed three-context internal dispatch
+rationale.
 
 ## End-to-End Flow
 
@@ -203,30 +174,36 @@ unknown intent stops visibly inside the choice.
   - `execution_context.engine`: the resolved playback method
 
 The live definition reads `catalogue_id`, `item_id`, and `output.domain`
-directly from `intent_record.params`. It normalizes the two MediaCat identifiers for
-branch selection using string conversion, defaulting, and trimming:
+directly from `intent_record.params`. It normalizes the two MediaCat identifiers
+using string conversion, defaulting, and trimming.
 
-- when neither identifier is non-blank, it enters a retained pre-cutover branch
-  that reads `intent_record.params.sources` and returns the older four-field media
-  response without `media_record`;
-- when exactly one identifier is non-blank, it creates one persistent
-  notification identifying the incomplete reference and stops with
-  `error: true`; and
-- when both identifiers are non-blank, the current normalized branch calls
+- when exactly one identifier is non-blank, it creates a persistent notification
+  identifying the incomplete reference and stops with `error: true`;
+- when both identifiers are blank, it creates a persistent notification
+  identifying the missing MediaCat reference and stops with `error: true`; and
+- when both identifiers are non-blank, it calls
   `curated_media.resolve_media_record` once, captures the complete result as
-  `media_record_response`, and uses its complete `execution_methods` mapping
-  for ASTV-owned method selection.
+  `media_record_response`, and uses its complete `execution_methods` mapping for
+  ASTV-owned method selection.
 
-All seven active media intent records contain both MediaCat identifiers and no
-`params.sources`. Each current request therefore selects the normalized branch,
-performs one lookup, and carries the complete result through one execution-method
-selection. The pre-cutover branch remains configured but is not selected by
-those records.
+After the MediaCat lookup, ASTV calls
+`script.astv_find_area_domain_endpoints`. If the returned area/domain playback
+configuration is empty or has no usable `preference` list, the Media Intent
+Engine creates `ASTV - Missing Playback Configuration` and stops before
+playback-method resolution.
 
-The current normalized branch calls the three sibling support functions below
-after its single MediaCat lookup. The retained pre-cutover branch calls the same
-functions against `intent_record.params.sources`. Their execution order does not imply
-calls between the functions.
+ASTV then calls `script.astv_resolve_playback_method`. That function preserves
+configured preference order and selects the first preference present in the
+available MediaCat execution methods. If no configured preference matches, it
+creates `ASTV - No Compatible Playback Method` and stops before evaluating
+`matching_sources | first`.
+
+On successful method resolution, ASTV selects the endpoint for that method and
+dispatches the unchanged normalized MediaCat record, selected target and
+selected method through the fixed three-context interface.
+
+The three support functions below are siblings called by Intent Engine: Media.
+Their execution order does not imply calls between the functions.
 
 #### ASTV - Fn: Find Area Domain Endpoints
 
@@ -261,9 +238,9 @@ Intent Engine: Media derives two separately named values from the one-key
 - `execution_method` from its key
 - `selected_endpoint` from the value for that key
 
-The current normalized branch places those values together with the unchanged
-`intent_record`, `target_area`, and complete unchanged `media_record_response` into
-the fixed three-context interface and calls Select Execution Engine directly.
+Intent Engine: Media places those values together with the unchanged
+`intent_record`, `target_area`, and complete unchanged `media_record_response`
+into the fixed three-context interface and calls Select Execution Engine directly.
 It does not flatten the record, remove unselected methods, or add an internal
 `selected_execution_method`.
 
@@ -346,35 +323,6 @@ terminal action; it does not narrow or redefine the AdvMedia return contract.
 The AdvMedia subsystem is an external boundary. Its internal preparation
 scripts, record lookup, profile handlers, and provider-specific implementation
 details are intentionally excluded from ASTV architecture documentation.
-
-#### Retained Pre-Cutover Provider Branch — Historical / Inactive
-
-The HA Media Player Engine still contains a no-context branch that calls
-`script.astv_handle_provider` with `request_object` and `media_player`. No active
-media record selects this branch after ASTV-65.
-
-##### ASTV - Fn: Handle Provider
-
-- Entity: `script.astv_handle_provider`
-- Inputs:
-  - `request_object`
-  - `media_player`
-- Return to HA Media Player Engine:
-  - `provider_payload_response`
-- Exclusive provider outcomes:
-  - `Radio Browser`
-  - `AdvMedia`
-
-This component is not part of the current production media flow. Its retained
-AdvMedia outcome still supplies the retired `media_catalogue` / `media_item_id`
-shape to the deleted adapter entity, so it is not a supported fallback path.
-
-##### Retained Radio Browser Provider
-
-- Component: ASTV - Fn: Provider - Radio Browser
-- Entity: `script.astv_provider_radiobrowser`
-- Input: `provider_data_object`
-- Return: `provider_payload_response`
 
 ### Google Home Device Branch
 
@@ -520,9 +468,9 @@ media execution path. It does not remove unselected methods or write its selecti
 into the MediaCat record. `execution_context.engine` remains the ASTV-selected
 method, carried separately from `intent_context.data.media_record`; a duplicate
 `selected_execution_method` field is not added to the internal dispatcher
-boundary. The ASTV AdvMedia boundary adapter uses the separately named
-`selected_execution_method` only where required by the cross-product AdvMedia
-contract.
+boundary. The HA Media Player Engine supplies the selected method to AdvMedia
+under the separately named cross-product field `selected_execution_method`, as
+required by the provider-owned AdvMedia contract.
 
 The current media intent engine carries the normalized record in
 `intent_context.data.media_record`, with the selected method in
@@ -532,17 +480,17 @@ objects.
 
 ### Current HA Media Player path
 
-For `ha_mplayer`, ASTV passes the complete record, selected method, and selected
-media-player endpoint into its AdvMedia boundary adapter. The adapter supplies
-the normalized record directly to the new AdvMedia processing core and maps
-ASTV's selected method to the separately named cross-product selection context.
-ASTV may also supply a non-blank explicit profile override; otherwise AdvMedia
-resolves the profile under its own rules. Endpoint selection remains ASTV-owned,
-profile resolution remains AdvMedia-owned, and MediaCat owns neither.
+For `ha_mplayer`, the ASTV HA Media Player Engine extracts the selected
+media-player endpoint from `target_context`, passes the complete normalized
+MediaCat record, selected execution method, and selected media player directly
+to `script.advmedia_process_media_record`, and captures the complete contracted
+result as `advmedia_response`.
 
-AdvMedia returns its complete contracted result. The ASTV adapter extracts the
-prepared playback payload for the HA Media Player engine, and ASTV performs the
-final `media_player.play_media` call.
+AdvMedia owns playback preparation and returns its contracted result. ASTV
+consumes `advmedia_response.playback_payload` and performs the final
+`media_player.play_media` action. Endpoint selection remains ASTV-owned;
+AdvMedia owns its internal profile and payload-generation rules; MediaCat owns
+neither.
 
 ### Current Google Home Device path
 
@@ -559,28 +507,6 @@ builder response unchanged, and the Google Home Device Engine invokes
 This branch does not call AdvMedia and has no media-player profile. MediaCat
 supplies item-specific source facts but does not select the endpoint, construct the
 final command, or invoke the assistant SDK.
-
-### Current standalone AdvMedia MediaCat gateway
-
-ASTV-67 replaced the standalone compatibility shape with an AdvMedia-owned
-MediaCat gateway whose caller supplies the catalogue reference, already selected
-execution method, and media-player endpoint. The gateway resolves the record
-once and calls the shared core once. It is separately contracted in the
-AdvMedia-owned `ADVMEDIA_MEDIACAT_GATEWAY_INTERFACE.md`.
-
-The retired `script.advmedia_find_media_record` wrapper is absent from current
-source and live Home Assistant after explicit user approval and post-removal
-proof. This change does not alter the current ASTV adapter or any ASTV method,
-endpoint, fallback, or playback responsibility. A normal ASTV v2 Classic FM
-request passed after retirement without calling the standalone gateway.
-
-`ASTV-65` proved the full normalized flow current end to end. Seven sequential
-UID requests each performed exactly one lookup and one method selection before
-one terminal action; all produced clean traces and logs and audible user
-confirmation. The ASTV-65 operational rollback window is closed; its historical
-evidence remains available through Linear and Git history. The active Draw.io
-bytes are the accepted current-production visual completed and reviewed under
-`ASTV-78`.
 
 ## Gateway Semantics
 
@@ -612,14 +538,12 @@ Exact verified names must be preserved. In particular:
 - `lookup_intent_id`
 - `intent_record_response`
 - `intent_record`
-- `request`
 - `execution_method`
 - `selected_endpoint`
 - `area_response`
 - `area_domain_response`
 - `playback_method_response`
 - `area_playback_endpoint_response`
-- `provider_payload_response`
 - `advmedia_response`
 - `command_response`
 - `provider_response`
@@ -633,21 +557,9 @@ A child's returned payload name describes the child's own interface. Do not
 rename either for visual or documentary consistency, and do not collapse names
 across provider or subsystem boundaries.
 
-## Retained Historical and Excluded Components
+## Historical and Retired Implementations
 
-The following scripts or branches remain configured but are not current
-architecture components unless a verified active dependency is added in the
-future:
-
-- `script.astv_resolver`
-- `script.astv_resolver_v2`
-- `script.astv_sound_tag_feedback`
-- `script.astv_handle_provider`
-- `script.astv_provider_radiobrowser`
-- the no-`media_record` branch in `script.astv_intent_engine_media`
-- the no-context media branches in `script.astv_select_execution_engine`,
-  and `script.astv_ha_mplayer_engine`
-
-Their presence in live configuration does not make them part of the current
-ASTV flow. In particular, the retained Handle Provider AdvMedia call uses
-fields removed from the v2-only adapter and is not a supported fallback.
+Retired or quarantined ASTV implementations remain recoverable through Git and
+Linear history but are not part of current source or current architecture.
+Their historical existence does not imply a supported compatibility path,
+fallback path, or active dependency.

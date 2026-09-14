@@ -6,16 +6,14 @@ automation:
     triggers:
     - entity_id:
       - sensor.pi_nfc_02_last_uid
-      trigger: state
-    - entity_id:
       - sensor.pi_nfc_99_last_uid
+      not_from:
+      - unknown
+      - unavailable
+      not_to:
+      - unknown
+      - unavailable
       trigger: state
-    conditions:
-    - condition: template
-      value_template: '{{ trigger.to_state.state | upper not in [''UNKNOWN'',''UNAVAILABLE'','''',
-        none] }}
-
-        '
     actions:
     - data:
         uid: '{{ trigger.to_state.state | upper }}'

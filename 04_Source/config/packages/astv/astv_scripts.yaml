@@ -648,13 +648,13 @@ script:
           object:
     sequence:
     - variables:
-        routine: '{{ intent_context.record.routine | default('''', true) | string | trim }}'
-        target_area: '{{ target_context.area | default('''', true) | string | trim }}'
+        routine: '{{ intent_context.record.routine | default('''', true) }}'
+        target_area: '{{ target_context.area | default('''', true) }}'
     - if:
       - condition: template
         value_template: '{{ routine == '''' }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - Google Automation Engine
           message: No valid routine was supplied for execution method 'g_automation' in area '{{ target_context.area }}'.
@@ -664,7 +664,7 @@ script:
       - condition: template
         value_template: '{{ target_area == '''' }}'
       then:
-      - action: persistent_notification.create
+      - action: notify.persistent_notification
         data:
           title: ASTV - Google Automation Engine
           message: No valid target area was supplied for execution method 'g_automation' and routine '{{ routine }}'.

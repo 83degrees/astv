@@ -84,7 +84,7 @@ governed representation.
 
 | Contract | Status/version | Provider/owner | Authoritative location | Local use |
 | --- | --- | --- | --- | --- |
-| `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | current registry v1.0.0 | MediaCat | `MediaCat/03_Contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized lookup and complete returned record used before ASTV selects a method and endpoint. |
+| `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | current v2.0.0 | MediaCat | `MediaCat/03_Contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized lookup through the sole current producer, `mediacat.resolve_media_record`, before ASTV selects a method and endpoint. |
 | `ASTV_ADVMEDIA_INTERFACE.md` | current v2.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | The HA Media Player Engine passes playback context directly to the AdvMedia core and consumes its playback payload before ASTV's final playback action. |
 
 The provider-owned locations above are the sole operational contract
@@ -116,8 +116,8 @@ reused product, platform, service, entity, or infrastructure names.
 | Identity | Classification | Owner | Permitted use | Evidence |
 | --- | --- | --- | --- | --- |
 | `astv_`, `script.astv_*`, `automation.astv_tag_listener`, `packages/astv` | owned | ASTV | ASTV implementation and configuration | Architecture and repository source |
-| `mediacat` | consumed | MediaCat | Home Assistant action namespace for governed MediaCat lookup | MediaCat contract |
-| `curated_media` catalogue identity | consumed | MediaCat | Logical catalogue identifier passed to MediaCat; not the integration domain | MediaCat contract |
+| `mediacat` | consumed | MediaCat | Sole current Home Assistant action namespace for governed MediaCat lookup | MediaCat contract |
+| `curated_media` catalogue identity | consumed | MediaCat | Logical catalogue identifier passed to MediaCat; not an integration/action namespace or runtime rollback surface | MediaCat contract |
 | `advmedia_`, `script.advmedia_*` | consumed | AdvMedia | Governed AdvMedia entry points only | AdvMedia contract |
 | Home Assistant entity/service domains and MQTT sensor identities | external | Home Assistant / infrastructure owners | Configured platform use | Architecture and production evidence |
 | `google_assistant_sdk` and Google Home / Matter identities | external | Their respective platforms | Configured external execution | Architecture and production evidence |

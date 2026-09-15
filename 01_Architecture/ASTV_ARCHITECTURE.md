@@ -20,6 +20,11 @@ Media Player Engine calls the AdvMedia core directly through the provider-owned
 AdvMedia interface. Historical migration states remain recoverable through
 Linear and Git history and are not described here as current architecture.
 
+Following the completed MediaCat namespace retirement, ASTV reaches the
+normalized lookup only through `mediacat.resolve_media_record`. The former
+`curated_media.*` Home Assistant action namespace is not part of the current
+architecture and is not an available runtime rollback surface.
+
 The current normalized flow is governed by the provider-owned contracts
 recorded in `00_Governance/PROJECT_PROFILE.md`, the ASTV execution-dispatch
 contract, and `DDR-01-001` for the fixed three-context internal dispatch
@@ -187,8 +192,9 @@ using string conversion, defaulting, and trimming.
   ASTV-owned method selection.
 
 All seven active media intent records use `catalogue_id: curated_media` as the
-logical MediaCat catalogue identity. That value is unchanged by the Home
-Assistant integration/action namespace migration to `mediacat`.
+logical MediaCat catalogue identity. That value does not identify a Home
+Assistant integration/action namespace and remains unchanged after retirement
+of the former `curated_media.*` runtime surface.
 
 After the MediaCat lookup, ASTV calls
 `script.astv_find_area_domain_endpoints`. If the returned area/domain playback
@@ -460,7 +466,7 @@ before selecting an execution method or endpoint. MediaCat supplies every
 available method and its source facts; ASTV applies its area/domain preference,
 selects one method, and selects the endpoint for that method.
 
-ASTV continues to own fallback policy. This migration cycle does not add
+ASTV continues to own fallback policy. The current architecture does not provide
 automatic retry or failover after lookup, method processing, command construction,
 or execution fails. A failed selected path stops according to the applicable
 contract; choosing another method or source remains future refinement.

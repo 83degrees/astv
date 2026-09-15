@@ -213,15 +213,17 @@ branch selection using string conversion, defaulting, and trimming:
   notification identifying the incomplete reference and stops with
   `error: true`; and
 - when both identifiers are non-blank, the current normalized branch calls
-  `curated_media.resolve_media_record` once, captures the complete result as
+  `mediacat.resolve_media_record` once, captures the complete result as
   `media_record_response`, and uses its complete `execution_methods` mapping
   for ASTV-owned method selection.
 
 All seven active media intent records contain both MediaCat identifiers and no
-`params.sources`. Each current request therefore selects the normalized branch,
-performs one lookup, and carries the complete result through one execution-method
-selection. The pre-cutover branch remains configured but is not selected by
-those records.
+`params.sources`. Their `catalogue_id: curated_media` value is the logical
+MediaCat catalogue identity and remains unchanged by the integration-domain
+migration. Each current request therefore selects the normalized branch,
+performs one lookup through the `mediacat` action namespace, and carries the
+complete result through one execution-method selection. The pre-cutover branch
+remains configured but is not selected by those records.
 
 The current normalized branch calls the three sibling support functions below
 after its single MediaCat lookup. The retained pre-cutover branch calls the same

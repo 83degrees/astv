@@ -116,7 +116,8 @@ reused product, platform, service, entity, or infrastructure names.
 | Identity | Classification | Owner | Permitted use | Evidence |
 | --- | --- | --- | --- | --- |
 | `astv_`, `script.astv_*`, `automation.astv_tag_listener`, `packages/astv` | owned | ASTV | ASTV implementation and configuration | Architecture and repository source |
-| `curated_media` | consumed | MediaCat | Governed MediaCat lookup only | MediaCat contract |
+| `mediacat` | consumed | MediaCat | Home Assistant action namespace for governed MediaCat lookup | MediaCat contract |
+| `curated_media` catalogue identity | consumed | MediaCat | Logical catalogue identifier passed to MediaCat; not the integration domain | MediaCat contract |
 | `advmedia_`, `script.advmedia_*` | consumed | AdvMedia | Governed AdvMedia entry points only | AdvMedia contract |
 | Home Assistant entity/service domains and MQTT sensor identities | external | Home Assistant / infrastructure owners | Configured platform use | Architecture and production evidence |
 | `google_assistant_sdk` and Google Home / Matter identities | external | Their respective platforms | Configured external execution | Architecture and production evidence |

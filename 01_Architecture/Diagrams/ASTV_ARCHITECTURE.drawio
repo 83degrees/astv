@@ -213,7 +213,7 @@
         <mxCell id="astv-intent-engine-media" parent="AlRS6Nxp4NqdQ7xusg6v-5" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontColor=#000000;" value="&lt;b&gt;Intent Engine: Media&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;script.astv_intent_engine_media&lt;/span&gt;" vertex="1">
           <mxGeometry height="70" width="1192" x="496" y="1036.5" as="geometry" />
         </mxCell>
-        <mxCell id="external-mediacat-subsystem" parent="AlRS6Nxp4NqdQ7xusg6v-5" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" value="&lt;b&gt;MediaCat subsystem&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;curated_media.resolve_media_record&lt;/span&gt;" vertex="1">
+        <mxCell id="external-mediacat-subsystem" parent="AlRS6Nxp4NqdQ7xusg6v-5" style="shape=hexagon;perimeter=hexagonPerimeter2;whiteSpace=wrap;html=1;fixedSize=1;fillColor=#f5f5f5;strokeColor=#666666;fontColor=#333333;" value="&lt;b&gt;MediaCat subsystem&lt;/b&gt;&lt;br&gt;&lt;span style=&quot;font-size: 11px;&quot;&gt;mediacat.resolve_media_record&lt;/span&gt;" vertex="1">
           <mxGeometry height="80" width="280" x="496" y="1226.5" as="geometry" />
         </mxCell>
         <mxCell id="edge-media-to-mediacat" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-5" source="astv-intent-engine-media" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;strokeColor=#666666;exitX=0.072;exitY=0.964;exitDx=0;exitDy=0;entryX=0.306;entryY=0.026;entryDx=0;entryDy=0;exitPerimeter=0;entryPerimeter=0;" target="external-mediacat-subsystem">

@@ -254,7 +254,7 @@ script:
             message: 'Media intent ''{{ intent_record.title | default(''(untitled)'', true) }}'' supplied no MediaCat catalogue_id/item_id.'
         - stop: Missing MediaCat reference
           error: true
-    - action: curated_media.resolve_media_record
+    - action: mediacat.resolve_media_record
       data:
         catalogue_id: '{{ catalogue_id }}'
         item_id: '{{ item_id }}'

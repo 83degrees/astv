@@ -182,9 +182,13 @@ using string conversion, defaulting, and trimming.
 - when both identifiers are blank, it creates a persistent notification
   identifying the missing MediaCat reference and stops with `error: true`; and
 - when both identifiers are non-blank, it calls
-  `curated_media.resolve_media_record` once, captures the complete result as
+  `mediacat.resolve_media_record` once, captures the complete result as
   `media_record_response`, and uses its complete `execution_methods` mapping for
   ASTV-owned method selection.
+
+All seven active media intent records use `catalogue_id: curated_media` as the
+logical MediaCat catalogue identity. That value is unchanged by the Home
+Assistant integration/action namespace migration to `mediacat`.
 
 After the MediaCat lookup, ASTV calls
 `script.astv_find_area_domain_endpoints`. If the returned area/domain playback

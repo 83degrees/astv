@@ -474,7 +474,7 @@
         <mxCell id="AlRS6Nxp4NqdQ7xusg6v-61" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="external-advmedia-subsystem" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 8;strokeColor=#82b366;exitX=0.743;exitY=-0.052;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;" target="astv-ha-mplayer-engine" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-62" connectable="0" parent="AlRS6Nxp4NqdQ7xusg6v-61" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontFamily=Courier New;fontColor=#333333;" value="advmedia_processed_response" vertex="1">
+        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-62" connectable="0" parent="AlRS6Nxp4NqdQ7xusg6v-61" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontFamily=Courier New;fontColor=#333333;" value="playback_payload" vertex="1">
           <mxGeometry relative="1" x="0.0839" y="3" as="geometry">
             <mxPoint x="2" y="61" as="offset" />
           </mxGeometry>

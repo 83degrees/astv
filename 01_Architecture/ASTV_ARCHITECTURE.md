@@ -311,12 +311,12 @@ The dispatcher returns no common data response.
 - Calls
   `script.advmedia_process_media_record` directly with:
   - complete `media_record`, extracted from `intent_context`
-  - `selected_execution_method`, extracted from `execution_context`
+  - `execution_engine`, extracted from `execution_context`
   - selected `media_player`
 - Captures the complete AdvMedia result as:
-  - `advmedia_response`
+  - `advmedia_processed_response`
 - Consumes only:
-  - `advmedia_response.playback_payload`
+  - `advmedia_processed_response.playback_payload`
 - Terminal action:
   - `media_player.play_media`
 
@@ -326,9 +326,10 @@ record, selected method, and selected player directly to the AdvMedia core,
 which performs no catalogue lookup. An AdvMedia failure does not trigger an
 alternative execution path.
 
-The external subsystem returns the complete contracted `advmedia_response` to
-the engine. The engine consumes only its `playback_payload` field for the
-terminal action; it does not narrow or redefine the AdvMedia return contract.
+The external subsystem returns `media_player` and `playback_payload`, captured
+by the engine as `advmedia_processed_response`. The engine consumes only its
+`playback_payload` field for the terminal action. AdvMedia resolves the media
+profile internally; ASTV neither supplies one nor expects one in the result.
 
 The AdvMedia subsystem is an external boundary. Its internal preparation
 scripts, record lookup, profile handlers, and provider-specific implementation
@@ -479,7 +480,7 @@ into the MediaCat record. `execution_context.engine` remains the ASTV-selected
 method, carried separately from `intent_context.data.media_record`; a duplicate
 `selected_execution_method` field is not added to the internal dispatcher
 boundary. The HA Media Player Engine supplies the selected method to AdvMedia
-under the separately named cross-product field `selected_execution_method`, as
+under the separately named cross-product field `execution_engine`, as
 required by the provider-owned AdvMedia contract.
 
 The current media intent engine carries the normalized record in
@@ -492,12 +493,13 @@ objects.
 
 For `ha_mplayer`, the ASTV HA Media Player Engine extracts the selected
 media-player endpoint from `target_context`, passes the complete normalized
-MediaCat record, selected execution method, and selected media player directly
+MediaCat record, selected execution engine, and selected media player directly
 to `script.advmedia_process_media_record`, and captures the complete contracted
-result as `advmedia_response`.
+two-field result as `advmedia_processed_response`.
 
-AdvMedia owns playback preparation and returns its contracted result. ASTV
-consumes `advmedia_response.playback_payload` and performs the final
+AdvMedia owns playback preparation, including internal media-profile resolution,
+and returns `media_player` and `playback_payload`. ASTV consumes
+`advmedia_processed_response.playback_payload` and performs the final
 `media_player.play_media` action. Endpoint selection remains ASTV-owned;
 AdvMedia owns its internal profile and payload-generation rules; MediaCat owns
 neither.
@@ -554,7 +556,7 @@ Exact verified names must be preserved. In particular:
 - `area_domain_response`
 - `playback_method_response`
 - `area_playback_endpoint_response`
-- `advmedia_response`
+- `advmedia_processed_response`
 - `command_response`
 - `provider_response`
 - `trigger_response`

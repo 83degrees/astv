@@ -449,7 +449,7 @@
             <mxPoint x="7" y="-138" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="label-ha-to-advmedia-method" connectable="0" parent="edge-ha-to-advmedia-core" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="selected_execution_method" vertex="1">
+        <mxCell id="label-ha-to-advmedia-method" connectable="0" parent="edge-ha-to-advmedia-core" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontFamily=Courier New;labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontColor=#333333;" value="execution_engine" vertex="1">
           <mxGeometry relative="1" x="1" y="-8" as="geometry">
             <mxPoint x="11" y="-114" as="offset" />
           </mxGeometry>
@@ -474,7 +474,7 @@
         <mxCell id="AlRS6Nxp4NqdQ7xusg6v-61" edge="1" parent="AlRS6Nxp4NqdQ7xusg6v-6" source="external-advmedia-subsystem" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=block;endFill=1;dashed=1;dashPattern=8 8;strokeColor=#82b366;exitX=0.743;exitY=-0.052;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;exitPerimeter=0;" target="astv-ha-mplayer-engine" value="">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-62" connectable="0" parent="AlRS6Nxp4NqdQ7xusg6v-61" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontFamily=Courier New;fontColor=#333333;" value="advmedia_response" vertex="1">
+        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-62" connectable="0" parent="AlRS6Nxp4NqdQ7xusg6v-61" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;labelBorderColor=#666666;fontFamily=Courier New;fontColor=#333333;" value="advmedia_processed_response" vertex="1">
           <mxGeometry relative="1" x="0.0839" y="3" as="geometry">
             <mxPoint x="2" y="61" as="offset" />
           </mxGeometry>
@@ -562,7 +562,7 @@
             <mxPoint x="229" y="-75" as="offset" />
           </mxGeometry>
         </mxCell>
-        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-64" connectable="0" parent="edge-ha-engine-to-terminal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;fontColor=#333333;labelBorderColor=#666666;fontFamily=Courier New;" value="advmedia_response.playback_payload" vertex="1">
+        <mxCell id="AlRS6Nxp4NqdQ7xusg6v-64" connectable="0" parent="edge-ha-engine-to-terminal" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];labelBackgroundColor=#f5f5f5;fontColor=#333333;labelBorderColor=#666666;fontFamily=Courier New;" value="advmedia_processed_response.playback_payload" vertex="1">
           <mxGeometry relative="1" x="0.148" y="-5" as="geometry">
             <mxPoint x="283" y="-55" as="offset" />
           </mxGeometry>

@@ -471,13 +471,13 @@ script:
     - action: script.advmedia_process_media_record
       data:
         media_record: '{{ intent_context.data.media_record }}'
-        selected_execution_method: '{{ execution_context.engine }}'
+        execution_engine: '{{ execution_context.engine }}'
         media_player: '{{ media_player_entity }}'
-      response_variable: advmedia_response
+      response_variable: advmedia_processed_response
     - action: media_player.play_media
       target:
         entity_id: '{{ media_player_entity }}'
-      data: '{{ advmedia_response.playback_payload }}'
+      data: '{{ advmedia_processed_response.playback_payload }}'
   astv_g_home_device_engine:
     alias: ASTV - Google Home Device Engine
     description: Executes the selected MediaCat source through a Google Home device

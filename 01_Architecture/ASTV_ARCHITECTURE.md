@@ -32,71 +32,19 @@ rationale.
 
 ## End-to-End Flow
 
-The lifecycle moves left-to-right through four phase bands. The active NFC path enters through external NFC input, reaches the configured reader sensors over MQTT, and passes through Tag Listener and UID Gateway before all subsequent ASTV processing continues through Intent Gateway.
+ASTV now begins at the governed Intent Invocation boundary. Upstream acquisition products such as AdvNFC submit canonical intent invocations to `script.astv_intent_gateway`; NFC reader handling, UID normalization, tag lookup and tag mapping are outside ASTV.
 
-1. Phase 0 receives the external NFC input through the MQTT-fed reader sensors and resolves the tag UID to its canonical `intent_id`.
-2. Phase 1 looks up the intent catalogue record and resolves the target area through Intent Gateway.
-3. Phase 2 selects the request intent. Media resolves the playback method and selected endpoint; Routine selects Google Automation. The selected intent engine constructs the complete three-context dispatch payload and calls Select Execution Engine directly.
-4. Phase 3 routes the unchanged three-context payload to one of the two Media
+The retained historical phase numbering remains unchanged:
+
+1. Phase 1 looks up the intent catalogue record and resolves the target area through Intent Gateway.
+2. Phase 2 selects the request intent. Media resolves the playback method and selected endpoint; Routine selects Google Automation. The selected intent engine constructs the complete three-context dispatch payload and calls Select Execution Engine directly.
+3. Phase 3 routes the unchanged three-context payload to one of the two Media
    execution engines or the Google Automation engine. The selected engine owns
    its context extraction and validation.
 
+Historical Phase 0 was legitimately ASTV-owned before the AdvNFC carve-out and remains recoverable through Git and Linear history. It is no longer part of current ASTV architecture.
+
 The current intent outcomes are `Media` and `Routine`. The current playback-engine outcomes are `HA Media Player` and `Google Home Device`.
-
-## Phase 0 — NFC Entry and Tag-to-Intent Resolution
-
-### External NFC Input and Reader Sensors
-
-An external NFC read is delivered over MQTT to one of the configured Home Assistant reader sensors:
-
-- `sensor.pi_nfc_02_last_uid`
-- `sensor.pi_nfc_99_last_uid`
-
-A state change on either sensor is evaluated by ASTV - Tag Listener. State transitions to or from `unknown` or `unavailable` are excluded at the Home Assistant trigger boundary before UID Gateway invocation.
-
-### ASTV - Tag Listener
-
-- Entity: `automation.astv_tag_listener`
-- Sources:
-  - `sensor.pi_nfc_02_last_uid`
-  - `sensor.pi_nfc_99_last_uid`
-- Excludes state transitions to or from `unknown` or `unavailable` at the Home Assistant trigger boundary.
-- Calls `script.astv_uid_gateway` for each remaining state change, with:
-  - `uid`
-  - `trigger_entity`
-
-No other NFC reader sensors are part of the current listener architecture.
-
-### ASTV - UID Gateway
-
-- Entity: `script.astv_uid_gateway`
-- Inputs:
-  - `uid`
-  - `trigger_entity` (default `sensor.pi_nfc_99_last_uid`)
-- Calls `script.astv_find_tag_record` with:
-  - `uid`
-- Captures the result as:
-  - `tag_record_response`
-- Stops with `No Tag Record Found` when the lookup is empty.
-- Stops with `Invalid Tag Record` when `intent_id` is absent or blank.
-- On success, temporarily creates `Tag Record Found` with UID, trigger entity, resolved intent ID, and optional tag area override.
-- Calls `script.astv_intent_gateway` with:
-  - `intent_id` from `tag_record_response.intent_id`
-  - `input_area_override` from optional `tag_record_response.area_override`
-  - `trigger_entity`
-
-UID Gateway does not resolve the catalogue request or area itself and does not call Select Intent Engine directly.
-
-#### ASTV - Fn: Find Tag Record
-
-- Entity: `script.astv_find_tag_record`
-- Input: `uid`
-- Return: `tag_record_response`
-- Data dependency:
-  - ASTV Tag Mapping
-  - `astv_tag_mapping.yaml`
-
-The function normalizes the supplied UID using string conversion, trimming, and uppercasing, then performs an exact mapping lookup. It returns `{}` for an unknown UID and remains side-effect-free.
 
 ## Phase 1 — Intent-Catalogue Lookup and Target-Area Resolution
 
@@ -104,7 +52,7 @@ The function normalizes the supplied UID using string conversion, trimming, and 
 
 `script.astv_intent_gateway` is the supported ASTV provider boundary for canonical intent invocation. The provider-owned contract is `../03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`.
 
-The current deployed architecture still reaches this boundary from ASTV Phase 0 through UID Gateway. Formalising the boundary does not remove Phase 0, change the active caller, or alter runtime behaviour. It permits governed external callers such as AdvNFC to consume the same entry point once their separate migration and cutover work is completed.
+The current deployed NFC-entry architecture reaches this boundary from AdvNFC following the accepted production cutover. ASTV owns the provider entry point and all downstream behavior; AdvNFC owns the NFC-specific acquisition, filtering, UID normalization, tag lookup, and mapping that precede the invocation.
 
 Caller-specific acquisition data such as NFC UID, tag-record structure, MQTT topic, or reader protocol is outside this boundary. The invocation request contains only the contracted `intent_id`, optional `input_area_override`, and optional `trigger_entity`.
 
@@ -546,9 +494,7 @@ final command, or invoke the assistant SDK.
 
 | Dependency | Type | Consumer or relationship |
 |---|---|---|
-| External NFC input | External input | Delivered over MQTT to the configured NFC reader sensors |
-| `sensor.pi_nfc_02_last_uid`, `sensor.pi_nfc_99_last_uid` | MQTT-fed Home Assistant sensors | State-change inputs evaluated by ASTV - Tag Listener; transitions to or from `unknown` or `unavailable` are excluded at the Home Assistant trigger boundary before UID Gateway invocation |
-| `astv_tag_mapping.yaml` | Data source | Active Find Tag Record lookup |
+| AdvNFC | External upstream product | Active NFC-entry caller of the governed ASTV Intent Invocation boundary |
 | `astv_intent_catalogue.yaml` | Data source | Find Intent Record lookup using `lookup_intent_id`; result `intent_record_response` |
 | `astv_area_endpoints2.yaml` | Data source | Find Area Domain Endpoints |
 | Home Assistant metadata / registry | Dynamic data source | Find Routine Trigger |
@@ -588,5 +534,6 @@ across provider or subsystem boundaries.
 
 Retired or quarantined ASTV implementations remain recoverable through Git and
 Linear history but are not part of current source or current architecture.
-Their historical existence does not imply a supported compatibility path,
-fallback path, or active dependency.
+This includes the former ASTV Phase 0 NFC-entry path, which was transferred to
+AdvNFC after the accepted production cutover. Its historical existence does not
+imply a supported compatibility path, fallback path, or active dependency.

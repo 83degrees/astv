@@ -100,6 +100,14 @@ The function normalizes the supplied UID using string conversion, trimming, and 
 
 ## Phase 1 — Intent-Catalogue Lookup and Target-Area Resolution
 
+### Supported Intent Invocation Boundary
+
+`script.astv_intent_gateway` is the supported ASTV provider boundary for canonical intent invocation. The provider-owned contract is `../03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`.
+
+The current deployed architecture still reaches this boundary from ASTV Phase 0 through UID Gateway. Formalising the boundary does not remove Phase 0, change the active caller, or alter runtime behaviour. It permits governed external callers such as AdvNFC to consume the same entry point once their separate migration and cutover work is completed.
+
+Caller-specific acquisition data such as NFC UID, tag-record structure, MQTT topic, or reader protocol is outside this boundary. The invocation request contains only the contracted `intent_id`, optional `input_area_override`, and optional `trigger_entity`.
+
 ### ASTV - Intent Gateway
 
 - Entity: `script.astv_intent_gateway`

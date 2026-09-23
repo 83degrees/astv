@@ -100,6 +100,14 @@ The function normalizes the supplied UID using string conversion, trimming, and 
 
 ## Phase 1 — Intent-Catalogue Lookup and Target-Area Resolution
 
+### Supported Intent Invocation Boundary
+
+`script.astv_intent_gateway` is the supported ASTV provider boundary for canonical intent invocation. The provider-owned contract is `../03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`.
+
+The current deployed architecture still reaches this boundary from ASTV Phase 0 through UID Gateway. Formalising the boundary does not remove Phase 0, change the active caller, or alter runtime behaviour. It permits governed external callers such as AdvNFC to consume the same entry point once their separate migration and cutover work is completed.
+
+Caller-specific acquisition data such as NFC UID, tag-record structure, MQTT topic, or reader protocol is outside this boundary. The invocation request contains only the contracted `intent_id`, optional `input_area_override`, and optional `trigger_entity`.
+
 ### ASTV - Intent Gateway
 
 - Entity: `script.astv_intent_gateway`
@@ -313,8 +321,10 @@ The dispatcher returns no common data response.
   - complete `media_record`, extracted from `intent_context`
   - `execution_engine`, extracted from `execution_context`
   - selected `media_player`
-- Captures the complete AdvMedia result as:
+- Captures the AdvMedia result as:
   - `advmedia_processed_response`
+- Successful result field:
+  - `playback_payload`
 - Consumes only:
   - `advmedia_processed_response.playback_payload`
 - Terminal action:
@@ -326,10 +336,13 @@ record, selected method, and selected player directly to the AdvMedia core,
 which performs no catalogue lookup. An AdvMedia failure does not trigger an
 alternative execution path.
 
-The external subsystem returns `media_player` and `playback_payload`, captured
-by the engine as `advmedia_processed_response`. The engine consumes only its
-`playback_payload` field for the terminal action. AdvMedia resolves the media
-profile internally; ASTV neither supplies one nor expects one in the result.
+The external subsystem returns a one-field successful result containing only
+`playback_payload`. The engine captures that result as
+`advmedia_processed_response` and consumes
+`advmedia_processed_response.playback_payload` for the terminal action.
+AdvMedia resolves the media profile internally but does not echo the selected
+endpoint in its result: ASTV retains its own `media_player_entity` and uses that
+ASTV-owned value as the terminal target.
 
 The AdvMedia subsystem is an external boundary. Its internal preparation
 scripts, record lookup, profile handlers, and provider-specific implementation
@@ -494,15 +507,17 @@ objects.
 For `ha_mplayer`, the ASTV HA Media Player Engine extracts the selected
 media-player endpoint from `target_context`, passes the complete normalized
 MediaCat record, selected execution engine, and selected media player directly
-to `script.advmedia_process_media_record`, and captures the complete contracted
-two-field result as `advmedia_processed_response`.
+to `script.advmedia_process_media_record`, and captures the contracted result as
+`advmedia_processed_response`. The successful result contains only
+`playback_payload`.
 
 AdvMedia owns playback preparation, including internal media-profile resolution,
-and returns `media_player` and `playback_payload`. ASTV consumes
+and returns only `playback_payload`. ASTV consumes
 `advmedia_processed_response.playback_payload` and performs the final
-`media_player.play_media` action. Endpoint selection remains ASTV-owned;
-AdvMedia owns its internal profile and payload-generation rules; MediaCat owns
-neither.
+`media_player.play_media` action using its existing `media_player_entity`.
+Endpoint selection and terminal targeting remain ASTV-owned; the endpoint is
+not returned by AdvMedia. AdvMedia owns its internal profile and
+payload-generation rules; MediaCat owns neither.
 
 ### Current Google Home Device path
 

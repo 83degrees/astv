@@ -57,6 +57,7 @@ path.
 | Boundary or capability | Relationship | Owner | Notes |
 | --- | --- | --- | --- |
 | ASTV intent and orchestration pipeline | owned | ASTV | Includes entry, request/area resolution, routing, selection, and dispatch. |
+| ASTV Intent Invocation boundary | provided | ASTV | Supported caller entry through `script.astv_intent_gateway`; exact request and failure semantics are defined by `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`. Current Phase 0 remains an internal caller until the separate AdvNFC carve-out completes. |
 | ASTV execution-dispatch boundary | owned | ASTV | Exact fields and failure behaviour are defined by `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md`. |
 | MediaCat normalized item lookup and returned record | consumed | MediaCat | ASTV consumes the provider-owned contract and does not own the record schema. |
 | AdvMedia playback-preparation boundary | consumed | AdvMedia | ASTV's HA Media Player Engine calls the AdvMedia direct core and owns the final playback action; AdvMedia owns its entry point and internals. |
@@ -78,6 +79,7 @@ governed representation.
 
 | Contract | Status/version | Authoritative provider-owned location | Consumers | Notes |
 | --- | --- | --- | --- | --- |
+| `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. Current ASTV Phase 0 remains the active internal caller until the separate carve-out and production cutover complete. |
 | `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v4.1.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal three-context boundary from Phase 2 producers through the Phase 3 execution engines; ASTV is both provider and consumer. |
 
 ## Contracts consumed

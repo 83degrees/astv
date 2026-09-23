@@ -22,16 +22,15 @@ is current under the approved Central Governance authority.
 
 ## Purpose
 
-ASTV is the Home Assistant intent and orchestration product. It receives entry
-events, resolves requests and household area context, routes intents, selects
-playback methods and endpoints, and dispatches to the applicable execution
-path.
+ASTV is the Home Assistant intent and orchestration product. It receives
+canonical intent invocations through its governed provider boundary, resolves
+requests and household area context, routes intents, selects playback methods
+and endpoints, and dispatches to the applicable execution path.
 
 ## Scope
 
 ### In scope
 
-- NFC/tag entry and request resolution.
 - Intent-catalogue lookup, household area resolution, and intent routing.
 - Area/domain preference, playback-method selection, endpoint selection, and
   fallback order.
@@ -46,6 +45,8 @@ path.
   available delivery-route facts.
 - AdvMedia internal lookup, media-source preparation, media-player-profile
   processing, and payload-generation implementation.
+- AdvNFC NFC-reader event consumption, reader-state filtering, UID normalization,
+  tag lookup, or tag mapping.
 - Home Assistant platform, MQTT infrastructure, Google Assistant, Google Home,
   or Matter ownership.
 - The external Google Home automation that reacts to ASTV's Matter-exposed
@@ -56,13 +57,12 @@ path.
 
 | Boundary or capability | Relationship | Owner | Notes |
 | --- | --- | --- | --- |
-| ASTV intent and orchestration pipeline | owned | ASTV | Includes entry, request/area resolution, routing, selection, and dispatch. |
-| ASTV Intent Invocation boundary | provided | ASTV | Supported caller entry through `script.astv_intent_gateway`; exact request and failure semantics are defined by `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`. Current Phase 0 remains an internal caller until the separate AdvNFC carve-out completes. |
+| ASTV intent and orchestration pipeline | owned | ASTV | Begins at the governed Intent Invocation boundary and includes request/area resolution, routing, selection, and dispatch. |
+| ASTV Intent Invocation boundary | provided | ASTV | Supported caller entry through `script.astv_intent_gateway`; exact request and failure semantics are defined by `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`. AdvNFC is the active NFC-entry caller. |
 | ASTV execution-dispatch boundary | owned | ASTV | Exact fields and failure behaviour are defined by `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md`. |
 | MediaCat normalized item lookup and returned record | consumed | MediaCat | ASTV consumes the provider-owned contract and does not own the record schema. |
 | AdvMedia playback-preparation boundary | consumed | AdvMedia | ASTV's HA Media Player Engine calls the AdvMedia direct core and owns the final playback action; AdvMedia owns its entry point and internals. |
 | Home Assistant runtime and metadata registries | external | Home Assistant | Runtime truth remains external to this repository. |
-| MQTT reader delivery | external | MQTT / reader infrastructure | ASTV consumes configured reader-sensor state changes. |
 | Google Assistant, Google Home, and Matter execution surfaces | external | Their respective platforms | ASTV uses governed/configured entry points without owning those platforms. |
 
 ## Approved architecture location
@@ -79,7 +79,7 @@ governed representation.
 
 | Contract | Status/version | Authoritative provider-owned location | Consumers | Notes |
 | --- | --- | --- | --- | --- |
-| `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. Current ASTV Phase 0 remains the active internal caller until the separate carve-out and production cutover complete. |
+| `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. AdvNFC is the active NFC-entry caller following the accepted cutover. |
 | `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v4.1.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal three-context boundary from Phase 2 producers through the Phase 3 execution engines; ASTV is both provider and consumer. |
 
 ## Contracts consumed
@@ -99,11 +99,10 @@ retained recovery copy must not be used for current work.
 | Dependency | Type | Owner | Governed interface/evidence | Required state | Failure boundary |
 | --- | --- | --- | --- | --- | --- |
 | Home Assistant | platform | Home Assistant | Current verified production evidence | Configured ASTV entities, services, area/label metadata, and helpers available | ASTV stops visibly at its documented validation boundaries. |
-| MQTT and configured NFC reader sensors | external | MQTT / reader infrastructure | `01_Architecture/ASTV_ARCHITECTURE.md` and production evidence | Reader state changes delivered to Home Assistant | No entry event reaches ASTV when delivery is unavailable. |
 | MediaCat | product/service | MediaCat | `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized item lookup available and contracted result returned | ASTV stops before method and endpoint selection on lookup failure. |
 | AdvMedia | product/service | AdvMedia | `ASTV_ADVMEDIA_INTERFACE.md` | Contracted processing entry point available for the selected HA media-player path | The selected path fails; ASTV does not select another method automatically. |
 | Google Assistant SDK / Google Home / Matter | external | Their respective platforms | `01_Architecture/ASTV_ARCHITECTURE.md` and production evidence | Configured external actions and helper exposure available | Failure remains at the selected execution path; no automatic retry is promised. |
-| ASTV configuration data | data | ASTV | `astv_tag_mapping.yaml`, `astv_intent_catalogue.yaml`, and `astv_area_endpoints2.yaml` in current production evidence | Files present and loadable at their configured Home Assistant paths | Lookup or resolution fails at the documented ASTV boundary. |
+| ASTV configuration data | data | ASTV | `astv_intent_catalogue.yaml` and `astv_area_endpoints2.yaml` in current production evidence | Files present and loadable at their configured Home Assistant paths | Lookup or resolution fails at the documented ASTV boundary. |
 
 ## Implementation namespace / naming identity
 
@@ -111,25 +110,27 @@ retained recovery copy must not be used for current work.
 
 ASTV owns the `astv_` prefix for its Home Assistant scripts, automation, data
 files, and package naming, including `script.astv_*`,
-`automation.astv_tag_listener`, `astv_*.yaml`, and `packages/astv`. The prefix
+`astv_*.yaml`, and `packages/astv`. The prefix
 identifies ASTV implementation ownership; it does not transfer ownership of
 reused product, platform, service, entity, or infrastructure names.
 
 | Identity | Classification | Owner | Permitted use | Evidence |
 | --- | --- | --- | --- | --- |
-| `astv_`, `script.astv_*`, `automation.astv_tag_listener`, `packages/astv` | owned | ASTV | ASTV implementation and configuration | Architecture and repository source |
+| `astv_`, `script.astv_*`, `packages/astv` | owned | ASTV | ASTV implementation and configuration | Architecture and repository source |
 | `mediacat` | consumed | MediaCat | Sole current Home Assistant action namespace for governed MediaCat lookup | MediaCat contract |
 | `curated_media` catalogue identity | consumed | MediaCat | Logical catalogue identifier passed to MediaCat; not an integration/action namespace or runtime rollback surface | MediaCat contract |
 | `advmedia_`, `script.advmedia_*` | consumed | AdvMedia | Governed AdvMedia entry points only | AdvMedia contract |
-| Home Assistant entity/service domains and MQTT sensor identities | external | Home Assistant / infrastructure owners | Configured platform use | Architecture and production evidence |
+| Home Assistant entity/service domains | external | Home Assistant | Configured platform use | Architecture and production evidence |
 | `google_assistant_sdk` and Google Home / Matter identities | external | Their respective platforms | Configured external execution | Architecture and production evidence |
 
 ## Production and evidence route
 
-- Production route: ASTV runs in the Home Assistant `starburst` instance. Its
-  current configured implementation includes `/config/packages/astv/astv_scripts.yaml`
-  and ASTV data under `/config/assistive/`; storage-managed definitions are
-  operated through Home Assistant's governed configuration route.
+- Production route: ASTV runs in the Home Assistant `starburst` instance. AdvNFC
+  supplies NFC-originated canonical intent invocations through the governed ASTV
+  Intent Invocation boundary. ASTV's current configured implementation includes
+  `/config/packages/astv/astv_scripts.yaml` and ASTV-owned data under
+  `/config/assistive/`; storage-managed definitions are operated through Home
+  Assistant's governed configuration route.
 - Evidence route: sibling read-only evidence under
   `Production_ReadOnly/starburst/`, supplemented where authorized by verified
   live read-only Home Assistant inspection.

@@ -1,7 +1,7 @@
 # ASTV Intent Invocation Interface
 
 **Contract version:** 1.0.0  
-**Status:** Candidate under ASTV-241  
+**Status:** Current  
 **Provider:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md`
 

@@ -21,7 +21,7 @@ script:
           text:
     sequence:
     - variables:
-        intent_catalogue: !include ../../assistive/astv_intent_catalogue.yaml
+        intent_catalogue: !include ../../astv/astv_intent_catalogue.yaml
         lookup_intent_id: '{{ intent_id | string | trim | lower }}'
     - variables:
         intent_record_response: '{{ intent_catalogue.get(lookup_intent_id, {}) }}'
@@ -45,7 +45,7 @@ script:
         name: Area
     sequence:
     - variables:
-        endpoints: !include ../../assistive/astv_area_endpoints2.yaml
+        endpoints: !include ../../astv/astv_area_endpoints2.yaml
     - variables:
         area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
     - stop: Area playback domain endpoints found

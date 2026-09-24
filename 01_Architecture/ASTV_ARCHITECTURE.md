@@ -180,7 +180,7 @@ Their execution order does not imply calls between the functions.
 - Return: `area_domain_response`
 - Data dependency:
   - Area Endpoints
-  - `astv_area_endpoints2.yaml`
+  - `astv_area_endpoints.yaml`
 
 #### ASTV - Fn: Resolve Playback Method
 
@@ -496,7 +496,7 @@ final command, or invoke the assistant SDK.
 |---|---|---|
 | AdvNFC | External upstream product | Active NFC-entry caller of the governed ASTV Intent Invocation boundary |
 | `astv_intent_catalogue.yaml` | Data source | Find Intent Record lookup using `lookup_intent_id`; result `intent_record_response` |
-| `astv_area_endpoints2.yaml` | Data source | Find Area Domain Endpoints |
+| `astv_area_endpoints.yaml` | Data source | Find Area Domain Endpoints |
 | Home Assistant metadata / registry | Dynamic data source | Find Routine Trigger |
 | AdvMedia subsystem | External subsystem | Reached directly by ASTV - HA Media Player Engine through `script.advmedia_process_media_record` |
 | `media_player.play_media` | External action | HA Media Player Engine |

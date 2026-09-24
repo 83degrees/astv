@@ -45,7 +45,7 @@ script:
         name: Area
     sequence:
     - variables:
-        endpoints: !include ../../astv/astv_area_endpoints2.yaml
+        endpoints: !include ../../astv/astv_area_endpoints.yaml
     - variables:
         area_domain_response: "{{\n  endpoints\n  .get(area, {})\n  .get('playback',\n          {})\n  .get(domain, {})\n}}"
     - stop: Area playback domain endpoints found

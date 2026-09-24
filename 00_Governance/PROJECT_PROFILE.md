@@ -102,7 +102,7 @@ retained recovery copy must not be used for current work.
 | MediaCat | product/service | MediaCat | `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized item lookup available and contracted result returned | ASTV stops before method and endpoint selection on lookup failure. |
 | AdvMedia | product/service | AdvMedia | `ASTV_ADVMEDIA_INTERFACE.md` | Contracted processing entry point available for the selected HA media-player path | The selected path fails; ASTV does not select another method automatically. |
 | Google Assistant SDK / Google Home / Matter | external | Their respective platforms | `01_Architecture/ASTV_ARCHITECTURE.md` and production evidence | Configured external actions and helper exposure available | Failure remains at the selected execution path; no automatic retry is promised. |
-| ASTV configuration data | data | ASTV | `astv_intent_catalogue.yaml` and `astv_area_endpoints2.yaml` in current production evidence | Files present and loadable at their configured Home Assistant paths | Lookup or resolution fails at the documented ASTV boundary. |
+| ASTV configuration data | data | ASTV | `astv_intent_catalogue.yaml` and `astv_area_endpoints.yaml` in current production evidence | Files present and loadable at their configured Home Assistant paths | Lookup or resolution fails at the documented ASTV boundary. |
 
 ## Implementation namespace / naming identity
 

@@ -87,7 +87,7 @@ governed representation.
 | Contract | Status/version | Provider/owner | Authoritative location | Local use |
 | --- | --- | --- | --- | --- |
 | `MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | current v2.0.0 | MediaCat | `MediaCat/03_Contracts/MEDIACAT_ITEM_LOOKUP_INTERFACE.md` | Normalized lookup through the sole current producer, `mediacat.resolve_media_record`, before ASTV selects a method and endpoint. |
-| `ASTV_ADVMEDIA_INTERFACE.md` | current v2.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | The HA Media Player Engine passes playback context directly to the AdvMedia core and consumes its playback payload before ASTV's final playback action. |
+| `ASTV_ADVMEDIA_INTERFACE.md` | current v3.0.0 | AdvMedia | `AdvMedia/03_Contracts/ASTV_ADVMEDIA_INTERFACE.md` | The HA Media Player Engine passes playback context directly to the AdvMedia core and consumes its playback payload before ASTV's final playback action. |
 
 The provider-owned locations above are the sole operational contract
 authorities. Former shared Governance 1.2 copies under

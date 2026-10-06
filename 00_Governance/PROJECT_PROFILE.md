@@ -129,7 +129,7 @@ reused product, platform, service, entity, or infrastructure names.
   supplies NFC-originated canonical intent invocations through the governed ASTV
   Intent Invocation boundary. ASTV's current configured implementation includes
   `/config/packages/astv/astv_scripts.yaml` and ASTV-owned data under
-  `/config/assistive/`; storage-managed definitions are operated through Home
+  `/config/astv/`; storage-managed definitions are operated through Home
   Assistant's governed configuration route.
 - Evidence route: sibling read-only evidence under
   `Production_ReadOnly/starburst/`, supplemented where authorized by verified
@@ -148,3 +148,12 @@ reused product, platform, service, entity, or infrastructure names.
 ## Repository source baseline
 
 The current ASTV implementation baseline is held under `04_Source/config/`.
+
+## Deployable units
+
+| Deployable unit | Type | Authoritative source | Target | Mechanism | Detailed authority |
+| --- | --- | --- | --- | --- | --- |
+| ASTV Home Assistant configuration | `haos_config` | `04_Source/config/**` (controlled legacy source location pending an explicit structure-migration issue) | `starburst` Home Assistant `/config/**`; exact path mappings are recorded in the ASTV deployment runbook | `operator_selected` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_CONFIG_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_HAOS_CONFIG_DEPLOYMENT_RUNBOOK.md` |
+
+The operator selects the practical transport for each authorised deployment.
+No transport is an ASTV product dependency merely because an operator uses it.

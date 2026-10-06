@@ -4,7 +4,10 @@ import yaml
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
-SCRIPTS_PATH = REPOSITORY_ROOT / "04_Source/config/packages/astv/astv_scripts.yaml"
+SCRIPTS_PATH = (
+    REPOSITORY_ROOT
+    / "04_Implementation/haos/source/config/packages/astv/astv_scripts.yaml"
+)
 
 
 class HomeAssistantLoader(yaml.SafeLoader):

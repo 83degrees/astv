@@ -20,17 +20,16 @@ the higher authority.
 
 ## Deployable unit and deterministic path map
 
-ASTV has one `haos_config` deployable unit in this repository. Its current
-authoritative source remains under the controlled legacy `04_Source/config/`
-location pending a separately governed structure migration. That source root
-maps to Home Assistant `/config/`.
+ASTV has one `haos_config` deployable unit in this repository. Its authoritative
+source is under the canonical `04_Implementation/haos/source/config/` root,
+which maps to Home Assistant `/config/`.
 
 | Governed source path | Deterministic `starburst` target path |
 | --- | --- |
-| `04_Source/config/astv/astv_area_endpoints.yaml` | `/config/astv/astv_area_endpoints.yaml` |
-| `04_Source/config/astv/astv_intent_catalogue.yaml` | `/config/astv/astv_intent_catalogue.yaml` |
-| `04_Source/config/packages/astv/astv_helpers.yaml` | `/config/packages/astv/astv_helpers.yaml` |
-| `04_Source/config/packages/astv/astv_scripts.yaml` | `/config/packages/astv/astv_scripts.yaml` |
+| `04_Implementation/haos/source/config/astv/astv_area_endpoints.yaml` | `/config/astv/astv_area_endpoints.yaml` |
+| `04_Implementation/haos/source/config/astv/astv_intent_catalogue.yaml` | `/config/astv/astv_intent_catalogue.yaml` |
+| `04_Implementation/haos/source/config/packages/astv/astv_helpers.yaml` | `/config/packages/astv/astv_helpers.yaml` |
+| `04_Implementation/haos/source/config/packages/astv/astv_scripts.yaml` | `/config/packages/astv/astv_scripts.yaml` |
 
 Only files included in the accepted candidate and explicitly authorised for the
 deployment are transferred. A directory selection, wildcard, editor workspace,

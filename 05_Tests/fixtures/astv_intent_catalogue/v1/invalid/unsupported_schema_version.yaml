@@ -1,0 +1,11 @@
+schema: astv.intent_catalogue
+schema_version: "2.0.0"
+records:
+  classic_fm:
+    intent: media.play_source
+    title: Unsupported future schema
+    params:
+      output:
+        domain: audio
+      catalogue_id: curated_media
+      item_id: classic_fm

@@ -1,0 +1,18 @@
+schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  kitchen_radio:
+    intent: media.play_source
+    title: Play kitchen radio
+    area_override: kitchen
+    params:
+      output:
+        domain: audio
+      catalogue_id: curated_media
+      item_id: classic_fm
+  bedroom_morning:
+    intent: routine.run
+    routine: morning
+    title: Bedroom morning routine
+    area_override: martin_bedroom
+    params: {}

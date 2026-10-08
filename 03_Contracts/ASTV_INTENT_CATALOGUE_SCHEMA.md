@@ -198,7 +198,7 @@ Schema v1 is fail-closed.
 - An optional value, when present, must satisfy its full type and value rule;
   blank and `null` are invalid.
 - String fields do not accept booleans, numbers, sequences or mappings.
-- `schema_version` does not accept a numeric string.
+- `schema_version` requires the exact quoted semantic-version string `"1.0.0"`; integer values and unsupported version strings are invalid.
 - Unknown keys are rejected at the envelope, record, `params`, and `output`
   levels.
 - An unknown `intent` discriminator is rejected; there is no generic record

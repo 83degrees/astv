@@ -15,6 +15,8 @@ unversioned deployed catalogue.
 
 Schema v1.0.0 uses semantic versioning (`MAJOR.MINOR.PATCH`) independently of administration interface versions and content revisions. Only the exact currently supported schema version is accepted; minor and patch changes require governed compatibility assessment and an explicit supported-version decision. YAML values are quoted strings to avoid parser-dependent typing.
 
+Schema v1.0.0 uses independent semantic versioning (MAJOR.MINOR.PATCH). The YAML value is a quoted string; only the exact current schema version is supported, and changes to supported versions require governed compatibility decisions.
+
 Schema v1 covers only:
 
 - `media.play_source`; and

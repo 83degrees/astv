@@ -1,5 +1,5 @@
 schema: astv.intent_catalogue
-schema_version: 1
+schema_version: "1.0.0"
 records:
   kitchen_radio:
     intent: media.play_source

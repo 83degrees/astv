@@ -1,7 +1,7 @@
 # ASTV Intent Catalogue Schema
 
 **Schema ID:** `astv.intent_catalogue`  
-**Schema version:** `1`  
+**Schema version:** `1.0.0`  
 **Status:** Proposed under ASTV-330; not approved or active until G3 human acceptance  
 **Owner:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`
@@ -12,6 +12,8 @@ This document proposes the persisted YAML schema for the ASTV Intent Catalogue.
 It defines the versioned document envelope, record identifiers, the two current
 intent-record shapes, validation boundaries, and the one-time migration from the
 unversioned deployed catalogue.
+
+Schema v1.0.0 uses semantic versioning (`MAJOR.MINOR.PATCH`) independently of administration interface versions and content revisions. Only the exact currently supported schema version is accepted; minor and patch changes require governed compatibility assessment and an explicit supported-version decision. YAML values are quoted strings to avoid parser-dependent typing.
 
 Schema v1 covers only:
 
@@ -43,7 +45,7 @@ The current source catalogue contains eight records: seven
 
 | Identity | Meaning | Initial/current value |
 | --- | --- | --- |
-| `schema_version` | Persisted ASTV Intent Catalogue vocabulary and shape | `1` |
+| `schema_version` | Persisted ASTV Intent Catalogue vocabulary and shape | `1.0.0` |
 | Intent Invocation `interface_version` | External caller-to-ASTV invocation contract | `1.0.0` |
 | Execution Dispatch interface version | Internal ASTV dispatch contract | `4.1.0` |
 | Future administration `interface_version` | External ASTV catalogue administration contract | Defined by ASTV-332 |
@@ -59,7 +61,7 @@ these keys:
 
 ```yaml
 schema: astv.intent_catalogue
-schema_version: 1
+schema_version: "1.0.0"
 records:
   <intent_id>:
     <record>
@@ -68,7 +70,7 @@ records:
 | Field | Presence | Type | Rule |
 | --- | --- | --- | --- |
 | `schema` | Required | string | Exactly `astv.intent_catalogue` |
-| `schema_version` | Required | integer | Exactly `1`; the string `"1"` is invalid |
+| `schema_version` | Required | string | Exactly `"1.0.0"` (quoted YAML string, semantic version); integer `1`, unquoted numeric values, and other versions are invalid |
 | `records` | Required | mapping | One or more uniquely identified records |
 
 No other root key is permitted. YAML directives, custom tags, merge keys and
@@ -217,7 +219,7 @@ byte-based revisions.
 ## Version selection and rejection
 
 ASTV supports only the current schema version. For this document that is
-`schema_version: 1`.
+`schema_version: "1.0.0"`.
 
 A loader must inspect the envelope before exposing records. A missing, malformed
 or unsupported version rejects the complete candidate. It must not:
@@ -286,7 +288,7 @@ classic_fm:
 
 # proposed v1
 schema: astv.intent_catalogue
-schema_version: 1
+schema_version: "1.0.0"
 records:
   classic_fm:
     intent: media.play_source
@@ -379,7 +381,7 @@ that new decision must be classified and assessed separately before acceptance.
 
 Human acceptance is required for the proposed:
 
-1. `schema`/`schema_version`/`records` envelope;
+1. `schema`/`schema_version`/`records` envelope with independent semantic schema version `"1.0.0"`;
 2. keyed-record identity model and canonical identifier rules;
 3. strict unknown-key, null, duplicate and atomic-rejection policy;
 4. exact `media.play_source` and `routine.run` shapes;

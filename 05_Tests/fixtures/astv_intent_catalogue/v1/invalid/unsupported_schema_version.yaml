@@ -1,5 +1,5 @@
 schema: astv.intent_catalogue
-schema_version: 2
+schema_version: "2.0.0"
 records:
   classic_fm:
     intent: media.play_source

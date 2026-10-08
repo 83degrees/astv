@@ -1,0 +1,7 @@
+schema: astv.intent_catalogue
+schema_version: 1
+records:
+  unsupported_intent:
+    intent: lighting.turn_on
+    title: Unsupported intent family
+    params: {}

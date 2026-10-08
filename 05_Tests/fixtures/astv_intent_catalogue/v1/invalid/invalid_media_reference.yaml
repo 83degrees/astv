@@ -1,0 +1,11 @@
+schema: astv.intent_catalogue
+schema_version: 1
+records:
+  malformed_media_reference:
+    intent: media.play_source
+    title: Invalid MediaCat item identifier
+    params:
+      output:
+        domain: audio
+      catalogue_id: curated_media
+      item_id: "BBC Radio 2"

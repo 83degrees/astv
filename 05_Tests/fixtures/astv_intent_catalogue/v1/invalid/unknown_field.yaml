@@ -1,0 +1,12 @@
+schema: astv.intent_catalogue
+schema_version: 1
+records:
+  classic_fm:
+    intent: media.play_source
+    title: Play Classic FM
+    notes: Unknown record fields are rejected
+    params:
+      output:
+        domain: audio
+      catalogue_id: curated_media
+      item_id: classic_fm

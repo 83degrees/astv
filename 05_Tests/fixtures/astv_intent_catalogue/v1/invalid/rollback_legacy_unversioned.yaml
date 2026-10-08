@@ -1,0 +1,14 @@
+classic_fm:
+  intent: media.play_source
+  title: Play Classic FM
+  params:
+    output:
+      domain: audio
+    catalogue_id: curated_media
+    item_id: classic_fm
+
+morning_routine:
+  intent: routine.run
+  routine: morning
+  title: Good Morning Routine
+  params: {}

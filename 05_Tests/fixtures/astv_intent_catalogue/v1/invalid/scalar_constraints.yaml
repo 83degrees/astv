@@ -1,5 +1,5 @@
 schema: astv.intent_catalogue
-schema_version: "1"
+schema_version: 1
 records:
   blank_title:
     intent: media.play_source

@@ -30,13 +30,13 @@ recorded in `00_Governance/PROJECT_PROFILE.md`, the ASTV execution-dispatch
 contract, and `DDR-01-001` for the fixed three-context internal dispatch
 rationale.
 
-## Target Runtime Catalogue Architecture (ASTV-331 Candidate)
+## Target Runtime Catalogue Architecture (approved ASTV-331 target)
 
 ### Lifecycle status and authority
 
-The design in this section is the ASTV-331 review candidate. It is not current
-implemented/runtime state and must not be described as active before G3 human
-acceptance and the separately governed ASTV-333 implementation and cutover.
+The design in this section was accepted under ASTV-331. It is approved target
+architecture, not current implemented/runtime state, and must not be described
+as active before the separately governed ASTV-333 implementation and cutover.
 
 The governed diagram continues to represent the current implemented flow while
 this target remains unimplemented. ASTV-333 must update the diagram if its
@@ -49,9 +49,9 @@ The target design is governed in detail by:
 - `../03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`; and
 - `../03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md`.
 
-ASTV-332 will define the separate administration interface. This architecture
-does not preselect its CRUD, staging, persistence, activation-action, live
-reference-probe, or history policy.
+ASTV-332 defines the separate administration interface and the durable staged
+lifecycle summarized below. The runtime lookup interface remains independently
+versioned and read-only.
 
 ### Provider boundary and components
 
@@ -160,6 +160,68 @@ The target changes only the Phase 1 lookup mechanism. The Intent Invocation
 v1.0.0 request and observable unknown-ID behavior, area precedence, intent
 selection, MediaCat and AdvMedia boundaries, and Execution Dispatch v4.1.0
 contexts remain unchanged.
+
+## Target Catalogue Administration Architecture (ASTV-332 candidate)
+
+### Ownership and boundary
+
+ASTV provides the independent interface
+astv.intent_catalogue.administration version 1.0.0 through response-only Home
+Assistant actions in the astv_intent_catalogue domain. Clients consume
+normalized records, capabilities, status and opaque revisions. They do not
+consume YAML, filenames, paths or provider storage objects.
+
+Read operations expose capability/status and the immutable active snapshot.
+Manage operations use Home Assistant admin-service enforcement for validation,
+staging, discard and activation. That enforcement rejects a non-admin user
+context but permits Home Assistant system contexts without a user identity; no
+separate role is claimed.
+
+### Active, persisted and draft state
+
+The provider owns three distinct state identities:
+
+- active_revision identifies the immutable registry serving lookup;
+- persisted_revision identifies the complete authoritative startup catalogue;
+  and
+- draft_revision identifies the one durable provider-wide staged candidate.
+
+There is exactly one shared draft, not one draft per manager. The first
+accepted edit clones the active snapshot. Every mutation supplies the current
+editable revision, replaces a complete record, validates the complete resulting
+candidate and persists the complete draft atomically. Staging never changes the
+active or authoritative persisted catalogue. Restart retains a valid draft
+without activating it.
+
+Activation is explicit and guarded by draft revision. ASTV validates the exact
+complete draft, constructs its immutable registry and verifies every distinct
+MediaCat reference before the commit point. One provider-owned atomic replace
+promotes persisted state and consumes the draft; a non-awaiting event-loop
+reference assignment then publishes the prepared registry. Readers see the old
+or new complete registry, never a partial registry.
+
+Expected failure before the commit point preserves active, persisted and draft
+state. A failed cold start still has no inherited active memory and requires
+operator restoration of a compatible persisted catalogue. A crash after the
+commit point is reconciled from persisted state and status on restart; action
+response delivery is not itself a transaction guarantee.
+
+### Cross-product isolation
+
+Activation dynamically verifies MediaCat catalogue/item existence through
+MediaCat's published lookup. An absent MediaCat action or operational provider
+failure is dependency unavailability and must not be rewritten as target
+not-found. A registered lookup's explicit structurally valid not-found path is
+a failed activation. ASTV stores no MediaCat record copy.
+
+AdvNFC owns NFC mappings and its reverse-reference query. ASTV neither mirrors
+nor validates that mapping during activation. Missing AdvNFC affects only a
+manager's optional dependent-reference discovery.
+
+The durable rationale is recorded by
+DDR-01-003_DURABLE_SHARED_INTENT_CATALOGUE_DRAFT_AND_EXPLICIT_ACTIVATION.md.
+The exact action, response, concurrency, error and recovery promises are owned
+by ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md.
 
 ## End-to-End Flow
 

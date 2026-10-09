@@ -70,7 +70,7 @@ and endpoints, and dispatches to the applicable execution path.
 - Approved architecture location: `01_Architecture/ASTV_ARCHITECTURE.md`
 - Governed diagram: `01_Architecture/Diagrams/ASTV_ARCHITECTURE.drawio`
 - Architecture state: current approved
-- Material DDRs: `02_Decisions/DDR-01-001_DIRECT_INTENT_ENGINE_EXECUTION_DISPATCH.md`
+- Material DDRs: `02_Decisions/DDR-01-001_DIRECT_INTENT_ENGINE_EXECUTION_DISPATCH.md`, `02_Decisions/DDR-01-002_IMMUTABLE_RUNTIME_INTENT_CATALOGUE_REGISTRY.md`, and proposed `02_Decisions/DDR-01-003_DURABLE_SHARED_INTENT_CATALOGUE_DRAFT_AND_EXPLICIT_ACTIVATION.md`
 
 The Markdown file is the semantic architecture authority. The diagram is its
 governed representation.
@@ -82,6 +82,7 @@ governed representation.
 | `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. AdvNFC is the active NFC-entry caller following the accepted cutover. |
 | `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v4.1.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal three-context boundary from Phase 2 producers through the Phase 3 execution engines; ASTV is both provider and consumer. |
 | `ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | proposed target v1.0.0 under ASTV-331; not runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | `script.astv_find_intent_record` after ASTV-333 | Read-only immutable-active-snapshot lookup boundary; the existing script remains the record-only compatibility adapter. |
+| `ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | proposed v1.0.0 under ASTV-332; not runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | provider-independent managers after ASTV-334/335 | Normalized discovery, status, active reads, validation, guarded durable staging, discard and explicit activation; storage serialization is not exposed. |
 
 ## Contracts consumed
 

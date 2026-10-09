@@ -244,6 +244,61 @@ records: {}
         self.assertEqual(candidate_document["records"], legacy_records)
         self.assertEqual(len(candidate_document["records"]), 8)
 
+    def test_revision_uses_normalized_content_not_yaml_serialization(self) -> None:
+        first = b'''schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  evening:
+    intent: routine.run
+    title: Evening
+    params: {}
+    routine: evening
+'''
+        equivalent = b'''# Serialization-only changes must not affect identity.
+records: {evening: {routine: evening, params: {}, title: Evening, intent: routine.run}}
+schema_version: '1.0.0'
+schema: astv.intent_catalogue
+'''
+        with TemporaryDirectory() as directory:
+            first_path = Path(directory) / "first.yaml"
+            equivalent_path = Path(directory) / "equivalent.yaml"
+            first_path.write_bytes(first)
+            equivalent_path.write_bytes(equivalent)
+
+            first_registry = _load(first_path)
+            equivalent_registry = _load(equivalent_path)
+
+        self.assertEqual(
+            first_registry.active_revision, equivalent_registry.active_revision
+        )
+        self.assertEqual(
+            first_registry.lookup("evening"), equivalent_registry.lookup("evening")
+        )
+
+    def test_revision_changes_when_normalized_content_changes(self) -> None:
+        original = b'''schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  evening:
+    intent: routine.run
+    title: Evening
+    params: {}
+    routine: evening
+'''
+        changed = original.replace(b"title: Evening", b"title: Evening routine")
+        with TemporaryDirectory() as directory:
+            original_path = Path(directory) / "original.yaml"
+            changed_path = Path(directory) / "changed.yaml"
+            original_path.write_bytes(original)
+            changed_path.write_bytes(changed)
+
+            original_registry = _load(original_path)
+            changed_registry = _load(changed_path)
+
+        self.assertNotEqual(
+            original_registry.active_revision, changed_registry.active_revision
+        )
+
 
 class ImmutableRegistryTests(unittest.TestCase):
     def setUp(self) -> None:

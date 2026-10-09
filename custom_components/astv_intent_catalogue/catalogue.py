@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
@@ -231,7 +232,22 @@ class ActiveRegistry:
         }
 
 
-def build_registry(candidate: Any, revision: str) -> ActiveRegistry:
+def _revision_for_content(records: Mapping[str, Mapping[str, Any]]) -> str:
+    """Identify normalized complete catalogue content, independent of YAML form."""
+    canonical = json.dumps(
+        {
+            "schema": SCHEMA_ID,
+            "schema_version": SCHEMA_VERSION,
+            "records": _detach(records),
+        },
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return f"sha256:{sha256(canonical).hexdigest()}"
+
+
+def build_registry(candidate: Any) -> ActiveRegistry:
     """Validate and deeply freeze a complete candidate without publishing it."""
     root = _require_mapping(candidate, "catalogue root")
     _require_exact_keys(
@@ -241,9 +257,6 @@ def build_registry(candidate: Any, revision: str) -> ActiveRegistry:
         raise CatalogueValidationError("unsupported schema")
     if root["schema_version"] != SCHEMA_VERSION:
         raise CatalogueValidationError("unsupported schema version")
-    if not isinstance(revision, str) or not revision:
-        raise CatalogueValidationError("revision must be opaque and non-empty")
-
     records = _require_mapping(root["records"], "records")
     if not records:
         raise CatalogueValidationError("records must not be empty")
@@ -257,6 +270,7 @@ def build_registry(candidate: Any, revision: str) -> ActiveRegistry:
             raise CatalogueValidationError("duplicate normalized record ID")
         validated[normalized] = _validate_record(record_value, raw_id)
 
+    revision = _revision_for_content(validated)
     return ActiveRegistry(
         schema_id=SCHEMA_ID,
         schema_version=SCHEMA_VERSION,
@@ -268,8 +282,7 @@ def build_registry(candidate: Any, revision: str) -> ActiveRegistry:
 def load_registry(path: Path) -> ActiveRegistry:
     """Read, identify, parse, validate, and freeze one persisted candidate."""
     raw = path.read_bytes()
-    revision = f"sha256:{sha256(raw).hexdigest()}"
-    return build_registry(_parse_yaml(raw), revision)
+    return build_registry(_parse_yaml(raw))
 
 
 class CatalogueProvider:

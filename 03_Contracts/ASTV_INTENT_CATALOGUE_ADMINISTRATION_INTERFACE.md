@@ -322,6 +322,93 @@ AdvNFC owns stored NFC mappings and reverse-reference query. ASTV does not mirro
 
 A manager may separately discover mappings through AdvNFC's advertised query operation for action_type astv_intent and intent_id. No matches is a successful empty AdvNFC result. If AdvNFC is absent, unavailable or does not advertise that query, only dependent reference discovery is unavailable; ASTV validation, CRUD, activation and runtime behavior remain unchanged. Removing an ASTV record does not remove or rewrite an AdvNFC mapping.
 
+## Operation outcome matrix
+
+All failure rows mean ok: false with the named common code and no state change unless the row explicitly describes native Home Assistant rejection before the handler.
+
+| Action | Required success fields beyond common identity | Expected provider failures |
+| --- | --- | --- |
+| get_administration_capabilities | mode, authorization, capabilities, operations, limits | none while action is registered |
+| get_administration_status | four state fields, four revision fields, activation_required, counts, last_activation_error | dependency_unavailable only when state cannot be inspected |
+| list_intent_records | active_revision, count, total_count, records, next_cursor | invalid_request, stale_revision, dependency_unavailable |
+| get_intent_record | normalized_intent_id, active_revision, record | invalid_request, not_found, dependency_unavailable |
+| validate_intent_record | valid, intent_id, errors | invalid_request/invalid_record |
+| validate_intent_catalogue | valid, record_count, candidate_revision, errors | invalid_request/invalid_candidate |
+| create_intent_record | operation: create, intent_id, prior_revision, draft_revision, draft_count, active_revision, activation_required | stale_revision, invalid_request/already_exists, invalid_request/invalid_candidate, dependency_unavailable |
+| update_intent_record | operation: update plus the same revision/count fields | stale_revision, not_found, invalid_request/invalid_candidate, dependency_unavailable |
+| delete_intent_record | operation: delete plus the same revision/count fields | stale_revision, not_found, invalid_request/invalid_candidate, dependency_unavailable |
+| discard_intent_catalogue_draft | operation: discard, prior_revision, draft_revision: null, editable_revision, active_revision, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable |
+| activate_intent_catalogue | operation: activate, equal active/persisted revisions, draft_revision: null, active_count, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable, activation_failed |
+
+Example guarded create success:
+
+~~~yaml
+ok: true
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.0.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+operation: create
+intent_id: evening_news
+prior_revision: rev-a
+draft_revision: rev-b
+draft_count: 9
+active_revision: rev-a
+activation_required: true
+~~~
+
+Example stale write:
+
+~~~yaml
+ok: false
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.0.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+active_revision: rev-a
+draft_revision: rev-c
+editable_revision: rev-c
+error:
+  code: stale_revision
+  refinement: stale_edit_revision
+  message: The candidate changed; refresh status before retrying.
+~~~
+
+Example failed activation retains the draft:
+
+~~~yaml
+ok: false
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.0.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+active_revision: rev-a
+persisted_revision: rev-a
+draft_revision: rev-b
+activation_required: true
+error:
+  code: activation_failed
+  refinement: referenced_target_not_found
+  message: One or more MediaCat targets could not be resolved.
+~~~
+
+## Dependency failure table
+
+| Condition | Contract classification | Required effect |
+| --- | --- | --- |
+| ASTV action not registered | Home Assistant ServiceNotFound; common dependency_unavailable mapping | no provider response; no state change |
+| ASTV action registered but config entry/state unavailable | dependency_unavailable/provider_state_unavailable | discovery remains usable; affected operation fails |
+| no active registry after cold-start validation failure | dependency_unavailable/active_state_unavailable | list/get and first edit unavailable; no legacy or partial lookup |
+| persisted catalogue invalid/unavailable while active remains | degraded status; activation_required reflects draft | active lookup continues; draft may be initialized from active; activation may repair persisted state |
+| draft invalid | degraded draft_state | active lookup continues; mutation/activation blocked; guarded discard or operator recovery |
+| draft persistence atomic replace fails | dependency_unavailable/persistence_unavailable | active, persisted and prior draft remain unchanged |
+| MediaCat action absent | dependency_unavailable/mediacat_unavailable | activation fails before commit; never report item not-found |
+| MediaCat valid reference explicitly absent | activation_failed/referenced_target_not_found | activation fails before commit; draft retained |
+| MediaCat registered action has operational failure | dependency_unavailable/mediacat_unavailable | activation fails before commit; draft retained |
+| AdvNFC absent or query unsupported | dependent reference discovery unavailable only | no effect on ASTV validation, staging, activation or runtime |
+| Home Assistant restarts with valid persisted A and draft B | normal recovery | A becomes active after complete validation; B remains staged |
+| crash after activation commit point | outcome unknown to caller | restart validates committed persisted state; status reconciles identity |
+
 ## Error model
 
 A provider failure response is:

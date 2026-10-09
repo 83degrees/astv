@@ -384,7 +384,8 @@ class PackagingAndAdapterTests(unittest.TestCase):
         self.assertEqual(manifest["version"], "0.1.0")
         self.assertTrue(manifest["config_flow"])
         self.assertTrue(manifest["single_config_entry"])
-        self.assertEqual(hacs["name"], "ASTV Intent Catalogue")
+        self.assertEqual(hacs, {"name": "ASTV Intent Catalogue"})
+        self.assertTrue((INTEGRATION / "brand" / "icon.png").is_file())
 
     def test_script_adapter_only_changes_lookup_boundary(self) -> None:
         scripts_path = (

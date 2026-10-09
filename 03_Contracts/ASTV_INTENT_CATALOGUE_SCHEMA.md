@@ -8,7 +8,7 @@
 
 ## Purpose and scope
 
-This document proposes the persisted YAML schema for the ASTV Intent Catalogue.
+This document defines the approved persisted YAML schema for the ASTV Intent Catalogue.
 It defines the versioned document envelope, record identifiers, the two current
 intent-record shapes, validation boundaries, and the one-time migration from the
 unversioned deployed catalogue.
@@ -377,9 +377,9 @@ There is no separate significant architectural decision whose rationale would
 otherwise be lost. If review changes an architectural responsibility or flow,
 that new decision must be classified and assessed separately before acceptance.
 
-## Decisions requiring G3 human agreement
+## G3 acceptance record
 
-Human acceptance is required for the proposed:
+ASTV-330 human review accepted:
 
 1. `schema`/`schema_version`/`records` envelope with independent semantic schema version `"1.0.0"`;
 2. keyed-record identity model and canonical identifier rules;
@@ -390,5 +390,6 @@ Human acceptance is required for the proposed:
 7. cross-product structural/reference boundary and ASTV-332 deferral; and
 8. conclusion that no architecture or DDR change is required.
 
-Until that acceptance, schema v1 remains proposed and must not be described as
-approved or active.
+That acceptance approved the schema design. It did not make schema v1 active in
+Home Assistant; runtime adoption remains subject to the separately governed
+implementation and cutover work.

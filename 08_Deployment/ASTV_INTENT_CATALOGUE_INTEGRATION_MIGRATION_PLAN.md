@@ -1,6 +1,6 @@
 # ASTV Intent Catalogue Integration and Migration Plan
 
-**Status:** Proposed under ASTV-331; design only  
+**Status:** Approved design under ASTV-331; ASTV-333 candidate prepared, no deployment authorized
 **Runtime implementation:** ASTV-333  
 **Administration contract:** ASTV-332  
 **Interoperability and cutover:** ASTV-336

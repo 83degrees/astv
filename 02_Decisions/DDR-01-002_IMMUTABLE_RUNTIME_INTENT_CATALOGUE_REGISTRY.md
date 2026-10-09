@@ -1,6 +1,6 @@
 # DDR-01-002: Immutable Runtime Intent-Catalogue Registry
 
-**Status:** Proposed  
+**Status:** Accepted under ASTV-331
 **Owner:** ASTV  
 **Source Linear issue:** [ASTV-331](https://linear.app/83degrees/issue/ASTV-331/design-astv-runtime-catalogue-registry-and-lookup-migration)  
 **Supersedes:** None

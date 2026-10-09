@@ -1,0 +1,59 @@
+name: ASTV Intent Catalogue validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - beta
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  repository-tests:
+    name: Repository tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install test dependency
+        run: python -m pip install PyYAML==6.0.3
+      - name: Run repository tests
+        run: python -m unittest discover -s 05_Tests -p 'test_*.py' -v
+
+  hassfest:
+    name: Hassfest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Run Hassfest validation
+        uses: home-assistant/actions/hassfest@342664e951e2fd5f00bc990fc968342388252475
+
+  hacs:
+    name: HACS advisory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      # The current validator falsely resolves valid integration and HACS
+      # manifests as None (hacs/integration#5497). It also imposes an
+      # unrelated repository-wide OSI licence policy. Keep the upstream check
+      # visible while Hassfest and repository packaging tests remain blocking.
+      - name: Run advisory HACS validation
+        continue-on-error: true
+        uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa
+        with:
+          category: integration

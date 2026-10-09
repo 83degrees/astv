@@ -21,10 +21,15 @@ script:
           text:
     sequence:
     - variables:
-        intent_catalogue: !include ../../astv/astv_intent_catalogue.yaml
         lookup_intent_id: '{{ intent_id | string | trim | lower }}'
+    - action: astv_intent_catalogue.lookup
+      data:
+        intent_id: '{{ lookup_intent_id }}'
+      response_variable: intent_catalogue_response
     - variables:
-        intent_record_response: '{{ intent_catalogue.get(lookup_intent_id, {}) }}'
+        intent_record_response: >-
+          {{ intent_catalogue_response.record
+             if intent_catalogue_response.found else {} }}
     - stop: Intent lookup complete
       response_variable: intent_record_response
 

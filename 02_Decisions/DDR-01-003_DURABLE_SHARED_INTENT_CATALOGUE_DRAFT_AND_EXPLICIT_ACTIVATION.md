@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted under ASTV-332
 
 ## Decision
 

@@ -2,7 +2,7 @@
 
 **Interface ID:** `astv.intent_catalogue.lookup`  
 **Interface version:** `1.0.0`  
-**Status:** Proposed under ASTV-331; not runtime-active  
+**Status:** Approved target under ASTV-331; ASTV-333 implementation candidate, not runtime-active
 **Provider:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md`
 

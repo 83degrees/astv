@@ -51,17 +51,6 @@ def _require_exact_keys(
         )
 
 
-def _canonical(value: Any, *, hyphen: bool = False) -> bool:
-    if not isinstance(value, str) or not value:
-        return False
-    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789_")
-    if hyphen:
-        allowed.add("-")
-    return value[0].isalnum() and value[0].islower() or value[0].isdigit() and all(
-        character in allowed for character in value
-    )
-
-
 def _valid_id(value: Any, *, hyphen: bool = False) -> bool:
     if not isinstance(value, str) or not value:
         return False

@@ -3,7 +3,7 @@
 **Interface ID:** astv.intent_catalogue.administration  
 **Interface version:** 1.0.0  
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
-**Status:** Proposed under ASTV-332; design only  
+**Status:** Approved design under ASTV-332; not implemented or runtime-active
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md
 

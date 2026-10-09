@@ -1,0 +1,13 @@
+{
+  "domain": "astv_intent_catalogue",
+  "name": "ASTV Intent Catalogue",
+  "codeowners": ["@gsheldon"],
+  "config_flow": true,
+  "documentation": "https://github.com/83degrees/astv",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/83degrees/astv/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

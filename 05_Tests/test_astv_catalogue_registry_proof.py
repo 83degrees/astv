@@ -5,11 +5,13 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 import unittest
+import sys
 
 PROOF_PATH = Path(__file__).with_name("proofs") / "astv_catalogue_registry_proof.py"
 SPEC = importlib.util.spec_from_file_location("astv_catalogue_registry_proof", PROOF_PATH)
 assert SPEC and SPEC.loader
 proof = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = proof
 SPEC.loader.exec_module(proof)
 
 

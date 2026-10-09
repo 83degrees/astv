@@ -1,0 +1,14 @@
+{
+  "config": {
+    "abort": {
+      "single_instance_allowed": "Only one ASTV Intent Catalogue entry is allowed."
+    },
+    "step": {
+      "user": {
+        "description": "Create the ASTV Intent Catalogue entry. The catalogue is read from its fixed governed path.",
+        "title": "ASTV Intent Catalogue"
+      }
+    }
+  },
+  "title": "ASTV Intent Catalogue"
+}

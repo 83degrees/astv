@@ -1,0 +1,11 @@
+lookup:
+  name: Look up intent record
+  description: Returns one record from the immutable active ASTV Intent Catalogue.
+  fields:
+    intent_id:
+      name: Intent ID
+      description: Intent identifier to normalize and look up.
+      required: true
+      example: classic_fm
+      selector:
+        text:

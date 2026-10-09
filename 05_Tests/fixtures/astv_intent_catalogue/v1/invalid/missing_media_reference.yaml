@@ -1,0 +1,10 @@
+schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  incomplete_media:
+    intent: media.play_source
+    title: Missing item reference
+    params:
+      output:
+        domain: audio
+      catalogue_id: curated_media

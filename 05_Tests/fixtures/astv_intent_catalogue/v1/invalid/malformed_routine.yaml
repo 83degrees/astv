@@ -1,0 +1,8 @@
+schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  morning_routine:
+    intent: routine.run
+    title: Missing routine selector
+    params:
+      unexpected: true

@@ -30,6 +30,137 @@ recorded in `00_Governance/PROJECT_PROFILE.md`, the ASTV execution-dispatch
 contract, and `DDR-01-001` for the fixed three-context internal dispatch
 rationale.
 
+## Target Runtime Catalogue Architecture (ASTV-331 Candidate)
+
+### Lifecycle status and authority
+
+The design in this section is the ASTV-331 review candidate. It is not current
+implemented/runtime state and must not be described as active before G3 human
+acceptance and the separately governed ASTV-333 implementation and cutover.
+
+The governed diagram continues to represent the current implemented flow while
+this target remains unimplemented. ASTV-333 must update the diagram if its
+accepted implementation makes the new component part of the current
+architecture.
+
+The target design is governed in detail by:
+
+- `../02_Decisions/DDR-01-002_IMMUTABLE_RUNTIME_INTENT_CATALOGUE_REGISTRY.md`;
+- `../03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`; and
+- `../03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md`.
+
+ASTV-332 will define the separate administration interface. This architecture
+does not preselect its CRUD, staging, persistence, activation-action, live
+reference-probe, or history policy.
+
+### Provider boundary and components
+
+The target adds one ASTV-owned Home Assistant custom integration:
+
+```text
+custom_components/astv_intent_catalogue/
+domain: astv_intent_catalogue
+read action: astv_intent_catalogue.lookup
+```
+
+The integration owns schema-v1 parsing and validation, one immutable active
+registry, transactional active-reference replacement, and the read-only lookup
+action. The persisted catalogue remains ASTV-owned configuration at
+`/config/astv/astv_intent_catalogue.yaml`; the integration does not copy it
+into config-entry data.
+
+`script.astv_find_intent_record` remains the Phase 1 lookup-only adapter. It
+normalizes the requested ID, calls the provider action, and returns only the
+provider response's `record`. It returns `{}` for an expected miss. Intent
+Gateway continues to own its existing notification and stop behavior.
+
+No provider envelope, normalized ID, schema identity, interface identity,
+revision, or synthesized `intent_id` enters area resolution, intent routing,
+or the fixed execution-dispatch contexts.
+
+### Registry state and identities
+
+The provider holds one active object containing the exact schema identity and
+version, an opaque active revision, and the complete normalized-ID-to-record
+mapping. The mapping and every nested record value are immutable; service
+responses are detached from it.
+
+The following identities remain distinct:
+
+| Identity | Meaning |
+| --- | --- |
+| Integration release version | Installed HACS implementation identity |
+| Lookup `interface_version` | External read-action contract |
+| `schema_version` | Persisted and active record vocabulary |
+| `persisted_revision` | Opaque identity of the complete bytes/candidate currently observed as persisted |
+| `active_revision` | Opaque identity of the complete candidate currently served |
+
+A consumer may compare revisions for equality only. It must not infer schema,
+time, sequence, or integration release from a revision.
+
+### Startup and transactional replacement
+
+At cold startup, the provider has no inherited active memory. Config-entry
+setup reads the complete deterministic file, rejects duplicate YAML keys,
+requires exactly schema v1.0.0, validates every record, constructs and freezes
+the candidate, and only then publishes the single active reference.
+
+An invalid or unavailable initial candidate fails setup and leaves no active
+registry. The provider does not partially load, infer the legacy format, or
+serve a prior in-memory snapshot across process restart.
+
+Every in-process refresh builds and preflights a complete replacement without
+changing active state. The final assignment of the active reference occurs on
+the Home Assistant event loop. If any earlier step fails, the prior active
+object and active revision remain unchanged and lookups continue from that
+snapshot.
+
+This retained-active guarantee does not imply persisted-file rollback or a
+durable last-known-good copy. ASTV-332 owns persisted-state and administration
+responsibilities.
+
+### Home Assistant loading and availability
+
+Installation does not itself make an action callable. A single UI-created
+config entry causes Home Assistant to load the integration. Following current
+Home Assistant guidance, `async_setup` registers the read action independently
+of config-entry success; the handler then validates that the config entry is
+loaded and an active registry exists.
+
+Consequently:
+
+- before the integration is loaded, Home Assistant reports the action as not
+  found;
+- after action registration but without a valid active state, the handler
+  raises a visible Home Assistant error;
+- an absent normalized intent ID is a successful lookup with an empty record;
+  and
+- provider unavailability is never rewritten as an absent intent.
+
+The action is read-only, uses `SupportsResponse.ONLY`, and is not admin-only.
+Home Assistant has no generic entity-independent read-service role to enforce
+at this boundary. Future state-changing administration actions require
+provider-side manage authorization under ASTV-332.
+
+### Deployment and compatibility boundary
+
+The integration is a `haos_integration` deployed through HACS. The versioned
+catalogue and script adapter remain `haos_config` deployed through the
+operator-selected configuration route. They are independently deployable units
+but the first cutover and any rollback treat implementation and catalogue bytes
+as one compatible pair.
+
+The initial migration explicitly converts the exact eight-record unversioned
+document to the accepted schema-v1 envelope before deployment. The loader
+performs no implicit migration. Detailed order, validation, and paired recovery
+are defined in
+`../08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md`.
+
+The target changes only the Phase 1 lookup mechanism. The Intent Invocation
+v1.0.0 request and observable unknown-ID behavior, area precedence, intent
+selection, MediaCat and AdvMedia boundaries, and Execution Dispatch v4.1.0
+contexts remain unchanged.
+
 ## End-to-End Flow
 
 ASTV now begins at the governed Intent Invocation boundary. Upstream acquisition products such as AdvNFC submit canonical intent invocations to `script.astv_intent_gateway`; NFC reader handling, UID normalization, tag lookup and tag mapping are outside ASTV.

@@ -82,7 +82,7 @@ governed representation.
 | `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. AdvNFC is the active NFC-entry caller following the accepted cutover. |
 | `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v4.1.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal three-context boundary from Phase 2 producers through the Phase 3 execution engines; ASTV is both provider and consumer. |
 | `ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | approved target v1.0.0 under ASTV-331; ASTV-333 candidate not runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | `script.astv_find_intent_record` after governed cutover | Read-only immutable-active-snapshot lookup boundary; the existing script remains the record-only compatibility adapter. |
-| `ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | approved design v1.0.0 under ASTV-332; not implemented or runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | provider-independent managers after ASTV-334/335 | Normalized discovery, status, active reads, validation, guarded durable staging, discard and explicit activation; storage serialization is not exposed. |
+| `ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | v1.0.0 ASTV-334 staged-administration implementation candidate; not runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | provider-independent managers after ASTV-334/335 | Normalized discovery, status, active reads, validation, guarded durable staging and discard are implemented by the ASTV-334 candidate; activation remains unadvertised and deferred to ASTV-335. Storage serialization is not exposed. |
 
 ## Contracts consumed
 
@@ -157,9 +157,10 @@ The current ASTV implementation baseline is held under
 | Deployable unit | Type | Authoritative source | Target | Mechanism | Detailed authority |
 | --- | --- | --- | --- | --- | --- |
 | ASTV Home Assistant configuration | `haos_config` | `04_Implementation/haos/source/config/**` | `starburst` Home Assistant `/config/**`; exact path mappings are recorded in the ASTV deployment runbook | `operator_selected` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_CONFIG_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_HAOS_CONFIG_DEPLOYMENT_RUNBOOK.md` |
-| ASTV Intent Catalogue provider (ASTV-333 implementation candidate; not deployed) | `haos_integration` | `custom_components/astv_intent_catalogue/**` under the approved HACS source exception | `starburst` Home Assistant `/config/custom_components/astv_intent_catalogue/**` | `hacs` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_INTEGRATION_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md` |
+| ASTV Intent Catalogue provider (ASTV-333/334 implementation candidate; not deployed) | `haos_integration` | `custom_components/astv_intent_catalogue/**` under the approved HACS source exception | `starburst` Home Assistant `/config/custom_components/astv_intent_catalogue/**` | `hacs` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_INTEGRATION_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md` |
 
-The provider-integration row records the ASTV-333 review candidate. It does not
+The provider-integration row records the ASTV-333 runtime-lookup and ASTV-334
+staged-administration review candidates. It does not
 claim installation, configuration, deployment, Beta acceptance, or current
 runtime state.
 

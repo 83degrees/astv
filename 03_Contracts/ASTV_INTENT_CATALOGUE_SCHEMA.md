@@ -2,7 +2,7 @@
 
 **Schema ID:** `astv.intent_catalogue`  
 **Schema version:** `1.0.0`  
-**Status:** Proposed under ASTV-330; not approved or active until G3 human acceptance  
+**Status:** Approved schema design under ASTV-330; not runtime-active  
 **Owner:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`
 
@@ -14,8 +14,6 @@ intent-record shapes, validation boundaries, and the one-time migration from the
 unversioned deployed catalogue.
 
 Schema v1.0.0 uses semantic versioning (`MAJOR.MINOR.PATCH`) independently of administration interface versions and content revisions. Only the exact currently supported schema version is accepted; minor and patch changes require governed compatibility assessment and an explicit supported-version decision. YAML values are quoted strings to avoid parser-dependent typing.
-
-Schema v1.0.0 uses independent semantic versioning (MAJOR.MINOR.PATCH). The YAML value is a quoted string; only the exact current schema version is supported, and changes to supported versions require governed compatibility decisions.
 
 Schema v1 covers only:
 

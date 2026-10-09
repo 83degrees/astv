@@ -103,34 +103,38 @@ permitted.
 
 ## Deployment order
 
-The operator performs only an explicitly authorized sequence.
+The operator performs only an explicitly authorized sequence inside a declared
+maintenance window in which callers do not invoke the Intent Gateway.
 
 1. Confirm the recorded immediate-prior integration version and configuration
    bytes are recoverable.
-2. Install the exact immutable HACS Beta tag for the integration. Installation
-   alone is not proof that the action is registered.
-3. Add the single integration config entry through Home Assistant UI if this is
-   the first installation. Do not point it at an arbitrary path; the provider
-   uses the deterministic catalogue path.
-4. Stop before provider setup while the target still contains legacy bytes if
-   the candidate cannot tolerate that transitional state. The detailed
-   implementation handoff must choose a restart/copy order that never asks the
-   schema-v1-only provider to activate legacy bytes.
-5. Transfer the accepted schema-v1 catalogue and script adapter bytes to their
-   exact `/config/**` targets without editing or transformation.
-6. Establish resulting target identity with hashes or byte comparison where
+2. Install the exact immutable HACS Beta tag for the integration. On first
+   installation, do not restart Home Assistant or create the config entry yet.
+   Installation alone is not proof that the action is registered.
+3. Transfer the accepted schema-v1 catalogue and script adapter bytes to their
+   exact `/config/**` targets without editing or transformation. Treat the
+   accepted file set as one cutover unit.
+4. Establish resulting target identity with hashes or byte comparison where
    available.
-7. Run the Home Assistant-supported configuration check.
-8. Only after a successful check and restart authority, restart Home Assistant
-   so the installed integration loads, the config entry sets up, and the
-   initial registry activates.
-9. Confirm the integration version, config-entry loaded state, action
+5. Run the Home Assistant-supported configuration check.
+6. Only after a successful check and restart authority, restart Home Assistant.
+   On an update, the existing config entry now loads the provider and activates
+   schema v1. On a first installation there is no entry yet, so the new adapter
+   remains intentionally unavailable during the maintenance window.
+7. For a first installation, create the single config entry through Home
+   Assistant UI after the restart. The setup reads the deterministic schema-v1
+   target and publishes the initial active registry. Do not configure an
+   arbitrary path.
+8. Confirm the integration version, config-entry loaded state, action
    availability, schema/active identity, and absence of load errors.
-10. Exercise the governed functional matrix below.
+9. Exercise the governed functional matrix below.
+10. End the maintenance window only after the compatibility checks pass.
 
-ASTV-333/336 must close the brief transitional-order detail in step 4 using the
-implemented setup behavior. They must not solve it by accepting the legacy
-shape implicitly.
+This order never asks the schema-v1-only provider to activate legacy bytes and
+never asks the legacy direct-include script to interpret the v1 envelope. It
+accepts a bounded first-installation interval in which the new script adapter
+is present but lookup is unavailable; preventing gateway calls during that
+interval is an explicit cutover responsibility, not an automatic fallback.
 
 ## Functional validation matrix
 

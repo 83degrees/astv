@@ -81,8 +81,8 @@ governed representation.
 | --- | --- | --- | --- | --- |
 | `ASTV_INTENT_INVOCATION_INTERFACE.md` | current v1.0.0 | `03_Contracts/ASTV_INTENT_INVOCATION_INTERFACE.md` | AdvNFC; future governed callers | Supported ASTV Intent Gateway invocation boundary. AdvNFC is the active NFC-entry caller following the accepted cutover. |
 | `ASTV_EXECUTION_DISPATCH_INTERFACE.md` | current v4.1.0 | `03_Contracts/ASTV_EXECUTION_DISPATCH_INTERFACE.md` | ASTV | Internal three-context boundary from Phase 2 producers through the Phase 3 execution engines; ASTV is both provider and consumer. |
-| `ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | current v1.0.0; ASTV-333 HACS Beta `v0.1.0-beta.b0e41a6` deployed and validated on `starburst` | `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | `script.astv_find_intent_record` after governed cutover | Read-only immutable-active-snapshot lookup boundary; the existing script remains the record-only compatibility adapter. |
-| `ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | v1.0.0 ASTV-335 activation implementation candidate; not runtime-active | `03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | provider-independent managers after ASTV-335 | Normalized discovery, status, active reads, validation, guarded durable staging, discard and explicit activation are implemented by the ASTV-335 candidate. Activation preflights distinct MediaCat references and retains active, persisted and draft state on pre-commit failure. Storage serialization is not exposed. |
+| `ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | current v1.0.0; provided by the ASTV-334 HACS Beta `v0.2.0-beta.1c4064b` deployed and validated on `starburst` | `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md` | `script.astv_find_intent_record` after governed cutover | Read-only immutable-active-snapshot lookup boundary; the existing script remains the record-only compatibility adapter. |
+| `ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | current v1.0.0 staged operations deployed through ASTV-334 HACS Beta `v0.2.0-beta.1c4064b`; ASTV-335 activation candidate not deployed | `03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md` | provider-independent managers | ASTV-334 discovery, status, active reads, validation, guarded durable staging and discard are runtime-active on `starburst`; stable integration release `v0.2.0` is published. ASTV-335 adds explicit activation in the review candidate only. Activation preflights distinct MediaCat references and retains active, persisted and draft state on pre-commit failure. Storage serialization is not exposed. |
 
 ## Contracts consumed
 
@@ -157,13 +157,14 @@ The current ASTV implementation baseline is held under
 | Deployable unit | Type | Authoritative source | Target | Mechanism | Detailed authority |
 | --- | --- | --- | --- | --- | --- |
 | ASTV Home Assistant configuration | `haos_config` | `04_Implementation/haos/source/config/**` | `starburst` Home Assistant `/config/**`; exact path mappings are recorded in the ASTV deployment runbook | `operator_selected` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_CONFIG_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_HAOS_CONFIG_DEPLOYMENT_RUNBOOK.md` |
-| ASTV Intent Catalogue provider (ASTV-333 Beta lookup deployed; ASTV-335 activation candidate not deployed) | `haos_integration` | `custom_components/astv_intent_catalogue/**` under the approved HACS source exception | `starburst` Home Assistant `/config/custom_components/astv_intent_catalogue/**` | `hacs` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_INTEGRATION_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md` |
+| ASTV Intent Catalogue provider (ASTV-334 Beta staged administration deployed; ASTV-335 activation candidate not deployed) | `haos_integration` | `custom_components/astv_intent_catalogue/**` under the approved HACS source exception | `starburst` Home Assistant `/config/custom_components/astv_intent_catalogue/**` | `hacs` | `00_Governance/01_Central/01_Standards/HOME_ASSISTANT_INTEGRATION_DEPLOYMENT_STANDARD.md` and `08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md` |
 
-The provider-integration row records the ASTV-333 HACS Beta
-`v0.1.0-beta.b0e41a6` runtime-lookup provider as installed and validated on
-`starburst`. The ASTV-335 activation implementation remains a review candidate:
-it has not been deployed, accepted in Beta, or established as current runtime
-state.
+The provider-integration row records the ASTV-334 HACS Beta
+`v0.2.0-beta.1c4064b` staged-administration provider as installed and validated
+on `starburst`, including successful live staging. Stable release `v0.2.0` is
+published. The ASTV-335 explicit-activation implementation remains a review
+candidate: it has not been deployed, accepted in Beta, or established as
+current runtime state.
 
 The operator selects the practical transport for each authorised configuration deployment.
 No transport is an ASTV product dependency merely because an operator uses it.

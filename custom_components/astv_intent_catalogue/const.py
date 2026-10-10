@@ -15,6 +15,10 @@ SERVICE_CREATE_INTENT_RECORD = "create_intent_record"
 SERVICE_UPDATE_INTENT_RECORD = "update_intent_record"
 SERVICE_DELETE_INTENT_RECORD = "delete_intent_record"
 SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT = "discard_intent_catalogue_draft"
+SERVICE_ACTIVATE_INTENT_CATALOGUE = "activate_intent_catalogue"
+
+MEDIACAT_DOMAIN = "mediacat"
+MEDIACAT_RESOLVE_MEDIA_RECORD = "resolve_media_record"
 
 CATALOGUE_PATH = Path("/config/astv/astv_intent_catalogue.yaml")
 DRAFT_PATH = Path("/config/astv/astv_intent_catalogue.draft.yaml")

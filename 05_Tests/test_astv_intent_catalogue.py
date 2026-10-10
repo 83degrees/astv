@@ -1343,6 +1343,56 @@ class PackagingAndAdapterTests(unittest.TestCase):
         self.assertIn("script.astv_resolve_area", gateway_text)
         self.assertIn("script.astv_select_intent_engine", gateway_text)
 
+    def test_supported_gateway_negative_paths_stop_before_internal_routing(self) -> None:
+        scripts_path = (
+            ROOT
+            / "04_Implementation"
+            / "haos"
+            / "source"
+            / "config"
+            / "packages"
+            / "astv"
+            / "astv_scripts.yaml"
+        )
+
+        class HomeAssistantYamlLoader(yaml.SafeLoader):
+            pass
+
+        HomeAssistantYamlLoader.add_constructor(
+            "!include", lambda loader, node: loader.construct_scalar(node)
+        )
+        document = yaml.load(
+            scripts_path.read_text(encoding="utf-8"),
+            Loader=HomeAssistantYamlLoader,
+        )
+        gateway_sequence = document["script"]["astv_intent_gateway"]["sequence"]
+
+        missing_record_guard = gateway_sequence[1]
+        self.assertIn("count == 0", missing_record_guard["if"][0]["value_template"])
+        self.assertEqual(
+            missing_record_guard["then"][-1],
+            {"stop": "No intent record found", "error": False},
+        )
+        self.assertNotIn(
+            "script.astv_select_intent_engine", json.dumps(missing_record_guard)
+        )
+
+        unresolved_area_guard = gateway_sequence[4]
+        self.assertIn(
+            "target_area == ''", unresolved_area_guard["if"][0]["value_template"]
+        )
+        self.assertEqual(
+            unresolved_area_guard["then"][-1],
+            {"stop": "No target area resolved", "error": False},
+        )
+        self.assertNotIn(
+            "script.astv_select_intent_engine", json.dumps(unresolved_area_guard)
+        )
+
+        self.assertEqual(
+            gateway_sequence[-1]["action"], "script.astv_select_intent_engine"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

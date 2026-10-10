@@ -285,11 +285,66 @@ def load_registry(path: Path) -> ActiveRegistry:
     return build_registry(_parse_yaml(raw))
 
 
+def load_registry_bytes(raw: bytes) -> ActiveRegistry:
+    """Parse, validate, and freeze one persisted candidate byte sequence."""
+    return build_registry(_parse_yaml(raw))
+
+
+def is_canonical_identifier(value: Any) -> bool:
+    """Return whether a value is a schema-v1 canonical intent identifier."""
+    return _is_identifier(value)
+
+
+def build_administration_candidate(candidate: Any) -> ActiveRegistry:
+    """Validate the normalized administration candidate shape."""
+    root = _require_mapping(candidate, "candidate")
+    _require_exact_keys(
+        root,
+        {"schema_id", "schema_version", "records"},
+        subject="candidate",
+    )
+    return build_registry(
+        {
+            "schema": root["schema_id"],
+            "schema_version": root["schema_version"],
+            "records": root["records"],
+        }
+    )
+
+
+def validate_administration_record(intent_id: Any, record: Any) -> ActiveRegistry:
+    """Validate one keyed record with the complete schema-v1 rules."""
+    if not _is_identifier(intent_id):
+        raise CatalogueValidationError("record ID is not canonical")
+    return build_registry(
+        {
+            "schema": SCHEMA_ID,
+            "schema_version": SCHEMA_VERSION,
+            "records": {intent_id: record},
+        }
+    )
+
+
+def registry_document(registry: ActiveRegistry) -> dict[str, Any]:
+    """Return a detached deterministic persisted-document model."""
+    return {
+        "schema": registry.schema_id,
+        "schema_version": registry.schema_version,
+        "records": _detach(registry.records),
+    }
+
+
+def detached_record(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Return a JSON-serializable detached record copy."""
+    return _detach(record)
+
+
 class CatalogueProvider:
     """Own the single atomically replaceable active registry reference."""
 
     def __init__(self) -> None:
         self._active: ActiveRegistry | None = None
+        self.administration: Any = None
 
     @property
     def active(self) -> ActiveRegistry | None:

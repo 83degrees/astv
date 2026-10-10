@@ -3,7 +3,7 @@
 **Interface ID:** astv.intent_catalogue.administration  
 **Interface version:** 1.0.0  
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
-**Status:** Approved design under ASTV-332; not implemented or runtime-active
+**Status:** ASTV-334 implementation candidate; not runtime-active
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md
 
@@ -30,7 +30,7 @@ Operations have two authorization classes:
 | Class | Operations | Enforced boundary |
 | --- | --- | --- |
 | read | capabilities, status, list, get | ordinary Home Assistant action registration; callable by contexts allowed to call the action |
-| manage | both validation operations, create, update, delete, discard and activate | Home Assistant async_register_admin_service |
+| manage | both validation operations, create, update, delete, discard and, when advertised, activate | Home Assistant async_register_admin_service |
 
 For a user-originated manage call, Home Assistant resolves call.context.user_id and rejects an unknown or non-administrator user before the ASTV handler runs. The current helper deliberately permits a trusted system context whose user_id is absent. Therefore “manage” means Home Assistant admin-service semantics, not a separately configurable role and not “a human administrator only.” Internal automations with a system context can invoke manage actions. A deployment that must prohibit such automation calls requires a separately designed authorization mechanism and must not claim that this contract already supplies it.
 
@@ -50,9 +50,9 @@ Read operations return non-secret normalized records. Manage validation can reve
 | staged update | update_intent_record | manage | expected_revision, intent_id, record |
 | staged delete | delete_intent_record | manage | expected_revision, intent_id |
 | draft discard | discard_intent_catalogue_draft | manage | expected_revision |
-| activation | activate_intent_catalogue | manage | expected_revision |
+| activation (added by ASTV-335 when callable) | activate_intent_catalogue | manage | expected_revision |
 
-The provider advertises exactly these capability identifiers in version 1.0.0:
+Discovery advertises only operations that are implemented, registered and callable in the installed provider release. Interface v1.0.0 initially advertises this ASTV-334 set:
 
 - discovery
 - status
@@ -64,9 +64,9 @@ The provider advertises exactly these capability identifiers in version 1.0.0:
 - draft.update
 - draft.delete
 - draft.discard
-- activation.explicit
 - concurrency.expected_revision
-- references.mediacat.activation_check
+
+ASTV-335 adds `activation.explicit`, `references.mediacat.activation_check` and the `activate` operation mapping only when `activate_intent_catalogue` is implemented, registered and tested. A provider must not advertise a placeholder or an operation that Home Assistant cannot call. This staged capability addition is backward-compatible within interface major version 1: discovery already defines capabilities and operations as the negotiated optional set, existing required meanings and operations do not change, and consumers must ignore unknown optional capabilities.
 
 AdvNFC reverse-reference discovery is not an ASTV operation and is not advertised as an ASTV capability.
 
@@ -98,7 +98,7 @@ schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 mode: managed
 mutation_supported: true
-activation_applicable: true
+activation_applicable: false
 authorization:
   read: home_assistant_service_call
   manage: home_assistant_admin_service
@@ -113,9 +113,7 @@ capabilities:
   - draft.update
   - draft.delete
   - draft.discard
-  - activation.explicit
   - concurrency.expected_revision
-  - references.mediacat.activation_check
 operations:
   discovery: get_administration_capabilities
   status: get_administration_status
@@ -127,13 +125,14 @@ operations:
   update: update_intent_record
   delete: delete_intent_record
   discard: discard_intent_catalogue_draft
-  activate: activate_intent_catalogue
 limits:
   list_default: 100
   list_maximum: 200
 ~~~
 
 Discovery reports the contract, not provider health. It remains available after action registration when the config entry, active state or persistence layer is unavailable.
+
+For the ASTV-334 implementation, `activation_applicable` is false because no callable activation operation is advertised. ASTV-335 changes it to true in the same release that adds the activation capabilities and operation mapping.
 
 ## State identities and status
 
@@ -312,7 +311,7 @@ At the verified design baseline, structurally valid MediaCat requests have these
 - ServiceValidationError from the registered action represents the published explicit catalogue/item not-found path and becomes activation_failed with refinement referenced_target_not_found and per-reference errors;
 - service absence or another operational Home Assistant error becomes dependency_unavailable with refinement mediacat_unavailable.
 
-ASTV-334 must reverify this distinction against its exact MediaCat implementation baseline. If MediaCat no longer provides a deterministic distinction, ASTV must not advertise or implement activation until a provider contract/implementation change restores it. Diagnostic message parsing is forbidden.
+ASTV-335 must reverify this distinction against its exact MediaCat implementation baseline. If MediaCat no longer provides a deterministic distinction, ASTV must not advertise or implement activation until a provider contract/implementation change restores it. Diagnostic message parsing is forbidden.
 
 References are deduplicated before probing. All targets must resolve. No partial activation, fallback catalogue, automatic reference deletion or cached MediaCat record is permitted. MediaCat response contents are not copied into the ASTV catalogue.
 
@@ -467,15 +466,20 @@ ASTV-333 and ASTV-334 must provide automated evidence for at least:
 - two-writer stale rejection with no write;
 - atomic draft replacement and injected write failure;
 - discard success, absent draft, stale discard and invalid-draft recovery;
-- activation success with old-or-new reader visibility only;
-- failure before commit retaining active, persisted and draft identities;
-- action absence versus MediaCat not-found versus operational failure;
-- deduplicated MediaCat probes and all-reference requirement;
 - failed cold start with no active state and successful in-process failure retention;
 - native Home Assistant exception mapping; and
 - unchanged Intent Invocation, lookup adapter and Execution Dispatch contracts.
 
-ASTV-335 must cover manager interoperability without depending on storage serialization. ASTV-336 must verify exact implementation/data versions, restart recovery, dependency failure isolation and compatible paired rollback before deployment handoff.
+ASTV-335 must provide automated evidence for at least:
+
+- activation success with old-or-new reader visibility only;
+- failure before commit retaining active, persisted and draft identities;
+- action absence versus MediaCat not-found versus operational failure;
+- deduplicated MediaCat probes and all-reference requirement;
+- callable-only activation discovery; and
+- manager interoperability without depending on storage serialization.
+
+ASTV-336 must verify exact implementation/data versions, restart recovery, dependency failure isolation and compatible paired rollback before deployment handoff.
 
 ## Compatibility and evolution
 

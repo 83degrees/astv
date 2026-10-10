@@ -2,7 +2,7 @@
 
 **Interface ID:** `astv.intent_catalogue.lookup`  
 **Interface version:** `1.0.0`  
-**Status:** Approved target under ASTV-331; ASTV-333 implementation candidate, not runtime-active
+**Status:** Current v1.0.0 interface; runtime-active on `starburst` through the accepted HACS Beta `v0.3.0-beta.da8e078`
 **Provider:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_CATALOGUE_LOOKUP_INTERFACE.md`
 
@@ -38,8 +38,10 @@ source: custom_components/astv_intent_catalogue/
 runtime target: /config/custom_components/astv_intent_catalogue/
 ```
 
-ASTV-333 will implement and package this boundary. No implementation or
-deployment is authorized by this contract.
+ASTV-333 implemented and packaged this boundary. The accepted implementation is
+published in stable integration release `v0.3.0`; the exact accepted HACS Beta
+`v0.3.0-beta.da8e078` remains installed on `starburst`. This contract does not
+itself authorize installation, update, or deployment.
 
 ## Request
 
@@ -111,7 +113,7 @@ retain its existing notification and non-error stop.
 
 ## Adapter compatibility contract
 
-After ASTV-333 cutover, `script.astv_find_intent_record` will:
+Following the accepted ASTV-333 cutover, `script.astv_find_intent_record`:
 
 1. normalize its input with the existing string/trim/lower expression;
 2. call `astv_intent_catalogue.lookup` and capture the response;
@@ -274,4 +276,5 @@ The Home Assistant platform assumptions were verified on 2026-10-09 against
   and validates config-entry availability inside the handler.
 
 This source identity is design evidence, not a permanent pin on Home Assistant.
-ASTV-333 must reverify compatibility against its implementation baseline.
+ASTV-333 reverified compatibility against its implementation baseline. ASTV-336
+retains the exact interface/schema-version and gateway/routing regression checks.

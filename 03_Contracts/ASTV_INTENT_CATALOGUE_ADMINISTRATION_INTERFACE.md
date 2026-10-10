@@ -3,9 +3,9 @@
 **Interface ID:** astv.intent_catalogue.administration  
 **Interface version:** 1.0.0  
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
-**Status:** v1.0.0 staged operations runtime-active through the deployed ASTV-334
-HACS Beta `v0.2.0-beta.1c4064b`; ASTV-335 explicit activation implementation
-candidate not deployed
+**Status:** Current v1.0.0 interface with explicit activation; runtime-active on
+`starburst` through the accepted HACS Beta `v0.3.0-beta.da8e078`; stable
+integration release `v0.3.0` published but not installed on `starburst`
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md
 
@@ -52,9 +52,9 @@ Read operations return non-secret normalized records. Manage validation can reve
 | staged update | update_intent_record | manage | expected_revision, intent_id, record |
 | staged delete | delete_intent_record | manage | expected_revision, intent_id |
 | draft discard | discard_intent_catalogue_draft | manage | expected_revision |
-| activation (added by ASTV-335 when callable) | activate_intent_catalogue | manage | expected_revision |
+| activation | activate_intent_catalogue | manage | expected_revision |
 
-Discovery advertises only operations that are implemented, registered and callable in the installed provider release. Interface v1.0.0 initially advertises this ASTV-334 set:
+Discovery advertises only operations that are implemented, registered and callable in the installed provider release. Interface v1.0.0 initially advertised this ASTV-334 set:
 
 - discovery
 - status
@@ -68,7 +68,14 @@ Discovery advertises only operations that are implemented, registered and callab
 - draft.discard
 - concurrency.expected_revision
 
-ASTV-335 adds `activation.explicit`, `references.mediacat.activation_check` and the `activate` operation mapping only when `activate_intent_catalogue` is implemented, registered and tested. A provider must not advertise a placeholder or an operation that Home Assistant cannot call. This staged capability addition is backward-compatible within interface major version 1: discovery already defines capabilities and operations as the negotiated optional set, existing required meanings and operations do not change, and consumers must ignore unknown optional capabilities.
+ASTV-335 added `activation.explicit`,
+`references.mediacat.activation_check` and the `activate` operation mapping after
+`activate_intent_catalogue` was implemented, registered and tested. A provider
+must not advertise a placeholder or an operation that Home Assistant cannot
+call. This capability addition is backward-compatible within interface major
+version 1: discovery already defines capabilities and operations as the
+negotiated optional set, existing required meanings and operations do not
+change, and consumers must ignore unknown optional capabilities.
 
 AdvNFC reverse-reference discovery is not an ASTV operation and is not advertised as an ASTV capability.
 
@@ -134,7 +141,10 @@ limits:
 
 Discovery reports the contract, not provider health. It remains available after action registration when the config entry, active state or persistence layer is unavailable.
 
-For the ASTV-334 implementation, `activation_applicable` is false because no callable activation operation is advertised. ASTV-335 changes it to true in the same release that adds the activation capabilities and operation mapping.
+The current v0.3.0 implementation reports `activation_applicable: true` and
+advertises the activation capabilities and callable operation mapping. The
+historical ASTV-334 v0.2.0 implementation reported false because it exposed no
+callable activation operation.
 
 ## State identities and status
 

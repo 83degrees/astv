@@ -36,12 +36,14 @@ deployment are transferred. A directory selection, wildcard, editor workspace,
 recent-file entry, or unlabeled local copy does not replace the exact source and
 target path list in the deployment record.
 
-For the first Intent Catalogue integration cutover, the versioned catalogue and
-`astv_scripts.yaml` are the `haos_config` half of the compatible pair defined by
+For an Intent Catalogue first installation, schema cutover or compatible-pair
+recovery, the versioned catalogue and `astv_scripts.yaml` are the `haos_config`
+half of the pair defined by
 `ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md`. The integration remains a
 separate `haos_integration` unit delivered through HACS. This runbook neither
-packages nor deploys that integration. The two exact prior identities must be
-recoverable together; the retained pre-v1 eight-record bytes are recorded at
+packages nor deploys that integration. The exact prior integration,
+catalogue, optional durable draft and adapter identities must be recoverable
+together; the retained pre-v1 eight-record bytes are recorded at
 `05_Tests/fixtures/astv_intent_catalogue/v1/legacy/current_baseline_unversioned.yaml`.
 
 ## Before transfer

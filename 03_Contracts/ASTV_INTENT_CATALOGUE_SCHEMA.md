@@ -2,7 +2,7 @@
 
 **Schema ID:** `astv.intent_catalogue`  
 **Schema version:** `1.0.0`  
-**Status:** Approved schema design under ASTV-330; not runtime-active  
+**Status:** Current v1.0.0 schema; runtime-active on `starburst` through the accepted HACS Beta `v0.3.0-beta.da8e078`
 **Owner:** ASTV  
 **Authoritative location:** `03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`
 

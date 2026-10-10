@@ -30,20 +30,23 @@ recorded in `00_Governance/PROJECT_PROFILE.md`, the ASTV execution-dispatch
 contract, and `DDR-01-001` for the fixed three-context internal dispatch
 rationale.
 
-## Target Runtime Catalogue Architecture (approved ASTV-331 target)
+## Runtime Catalogue Architecture
 
 ### Lifecycle status and authority
 
-The design in this section was accepted under ASTV-331. It is approved target
-architecture, not current implemented/runtime state, and must not be described
-as active before the separately governed ASTV-333 implementation and cutover.
+The design in this section was accepted under ASTV-331, implemented and cut
+over under ASTV-333, and extended with the accepted administration lifecycle
+under ASTV-334 and ASTV-335. It is current approved and implemented
+architecture. The accepted HACS Beta `v0.3.0-beta.da8e078` remains installed on
+`starburst`; stable integration release `v0.3.0` is published but not installed
+there.
 
-The governed diagram continues to represent the current implemented flow while
-this target remains unimplemented. ASTV-333 must update the diagram if its
-accepted implementation makes the new component part of the current
-architecture.
+The governed diagram represents the end-to-end runtime flow and logical ASTV
+Intent Catalogue dependency. This document remains authoritative for the
+custom-integration provider, immutable registry and administration lifecycle
+details that do not need separate diagram nodes to preserve the runtime flow.
 
-The target design is governed in detail by:
+The runtime design is governed in detail by:
 
 - `../02_Decisions/DDR-01-002_IMMUTABLE_RUNTIME_INTENT_CATALOGUE_REGISTRY.md`;
 - `../03_Contracts/ASTV_INTENT_CATALOGUE_SCHEMA.md`; and
@@ -55,7 +58,7 @@ versioned and read-only.
 
 ### Provider boundary and components
 
-The target adds one ASTV-owned Home Assistant custom integration:
+The architecture includes one ASTV-owned Home Assistant custom integration:
 
 ```text
 custom_components/astv_intent_catalogue/
@@ -139,8 +142,8 @@ Consequently:
 
 The action is read-only, uses `SupportsResponse.ONLY`, and is not admin-only.
 Home Assistant has no generic entity-independent read-service role to enforce
-at this boundary. Future state-changing administration actions require
-provider-side manage authorization under ASTV-332.
+at this boundary. State-changing administration actions use provider-side
+manage authorization under ASTV-332.
 
 ### Deployment and compatibility boundary
 
@@ -156,12 +159,12 @@ performs no implicit migration. Detailed order, validation, and paired recovery
 are defined in
 `../08_Deployment/ASTV_INTENT_CATALOGUE_INTEGRATION_MIGRATION_PLAN.md`.
 
-The target changes only the Phase 1 lookup mechanism. The Intent Invocation
+The implemented change affects only the Phase 1 lookup mechanism. The Intent Invocation
 v1.0.0 request and observable unknown-ID behavior, area precedence, intent
 selection, MediaCat and AdvMedia boundaries, and Execution Dispatch v4.1.0
 contexts remain unchanged.
 
-## Target Catalogue Administration Architecture (ASTV-332 candidate)
+## Catalogue Administration Architecture
 
 ### Ownership and boundary
 

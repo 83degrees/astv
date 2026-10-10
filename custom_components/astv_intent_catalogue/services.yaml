@@ -136,3 +136,13 @@ discard_intent_catalogue_draft:
       required: true
       selector:
         text:
+
+activate_intent_catalogue:
+  name: Activate intent catalogue draft
+  description: Admin-only guarded validation and atomic activation of the durable draft.
+  fields:
+    expected_revision:
+      name: Expected revision
+      required: true
+      selector:
+        text:

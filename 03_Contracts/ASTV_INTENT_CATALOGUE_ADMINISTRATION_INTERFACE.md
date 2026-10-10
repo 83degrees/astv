@@ -3,7 +3,9 @@
 **Interface ID:** astv.intent_catalogue.administration  
 **Interface version:** 1.0.0  
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
-**Status:** ASTV-334 implementation candidate; not runtime-active
+**Status:** v1.0.0 staged operations runtime-active through the deployed ASTV-334
+HACS Beta `v0.2.0-beta.1c4064b`; ASTV-335 explicit activation implementation
+candidate not deployed
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md
 

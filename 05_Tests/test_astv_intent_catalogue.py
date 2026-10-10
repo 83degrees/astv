@@ -116,6 +116,9 @@ def _install_home_assistant_stubs() -> None:
     class ServiceValidationError(RuntimeError):
         pass
 
+    class HomeAssistantError(RuntimeError):
+        pass
+
     class Unauthorized(RuntimeError):
         pass
 
@@ -147,6 +150,7 @@ def _install_home_assistant_stubs() -> None:
     core.ServiceResponse = dict
     core.SupportsResponse = SupportsResponse
     exceptions.ConfigEntryError = ConfigEntryError
+    exceptions.HomeAssistantError = HomeAssistantError
     exceptions.ServiceValidationError = ServiceValidationError
     exceptions.Unauthorized = Unauthorized
     service_helper.async_register_admin_service = async_register_admin_service
@@ -179,6 +183,7 @@ class FakeServices:
     def __init__(self):
         self.registration = None
         self.registrations = {}
+        self.calls = []
 
     def async_register(self, domain, service, handler, **kwargs):
         registration = (domain, service, handler, kwargs)
@@ -189,13 +194,29 @@ class FakeServices:
     def handler(self, domain, service):
         return self.registrations[(domain, service)][2]
 
+    def has_service(self, domain, service):
+        return (domain, service) in self.registrations
+
+    async def async_call(
+        self, domain, service, service_data, *, blocking=False, return_response=False
+    ):
+        self.calls.append((domain, service, dict(service_data)))
+        handler = self.handler(domain, service)
+        call_type = sys.modules["homeassistant.core"].ServiceCall
+        return await handler(call_type(service_data))
+
 
 class FakeConfigEntries:
     def __init__(self, entries=None):
         self.entries = list(entries or [])
+        self.reload_calls = []
 
     def async_entries(self, domain):
         return self.entries
+
+    async def async_reload(self, entry_id):
+        self.reload_calls.append(entry_id)
+        return True
 
 
 class FakeHass:
@@ -504,15 +525,30 @@ class AdministrationContractTests(unittest.TestCase):
             "routine": "evening",
         }
 
-    def test_discovery_advertises_only_callable_astv_334_operations(self) -> None:
+    @staticmethod
+    def _media(item_id="classic_fm", title="Media"):
+        return {
+            "intent": "media.play_source",
+            "title": title,
+            "params": {
+                "output": {"domain": "audio"},
+                "catalogue_id": "curated_media",
+                "item_id": item_id,
+            },
+        }
+
+    def test_discovery_advertises_callable_activation(self) -> None:
         response = administration.AdministrationManager.capabilities()
         self.assertTrue(response["ok"])
-        self.assertFalse(response["activation_applicable"])
-        self.assertNotIn("activation.explicit", response["capabilities"])
-        self.assertNotIn(
+        self.assertTrue(response["activation_applicable"])
+        self.assertIn("activation.explicit", response["capabilities"])
+        self.assertIn(
             "references.mediacat.activation_check", response["capabilities"]
         )
-        self.assertNotIn("activate", response["operations"])
+        self.assertEqual(
+            response["operations"]["activate"],
+            const.SERVICE_ACTIVATE_INTENT_CATALOGUE,
+        )
         self.assertEqual(
             set(response["operations"].values()),
             {
@@ -526,6 +562,7 @@ class AdministrationContractTests(unittest.TestCase):
                 const.SERVICE_UPDATE_INTENT_RECORD,
                 const.SERVICE_DELETE_INTENT_RECORD,
                 const.SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
+                const.SERVICE_ACTIVATE_INTENT_CATALOGUE,
             },
         )
         json.dumps(response)
@@ -534,7 +571,7 @@ class AdministrationContractTests(unittest.TestCase):
             set(descriptions),
             {const.SERVICE_LOOKUP, *response["operations"].values()},
         )
-        self.assertNotIn("activate_intent_catalogue", descriptions)
+        self.assertIn("activate_intent_catalogue", descriptions)
 
     def test_status_active_list_get_pagination_and_detachment(self) -> None:
         with TemporaryDirectory() as directory:
@@ -729,13 +766,14 @@ class AdministrationContractTests(unittest.TestCase):
             const.SERVICE_UPDATE_INTENT_RECORD,
             const.SERVICE_DELETE_INTENT_RECORD,
             const.SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
+            const.SERVICE_ACTIVATE_INTENT_CATALOGUE,
         ):
             registered = hass.services.registrations[(const.DOMAIN, service)]
             self.assertTrue(registered[3]["admin_only"])
             self.assertEqual(
                 registered[3]["supports_response"], integration.SupportsResponse.ONLY
             )
-        self.assertNotIn(
+        self.assertIn(
             (const.DOMAIN, "activate_intent_catalogue"), hass.services.registrations
         )
         handler = registration[2]
@@ -802,13 +840,253 @@ class AdministrationContractTests(unittest.TestCase):
             self.assertEqual(manager.status()["draft_count"], 9)
             self.assertEqual(len(provider.active.records), 8)
 
+    def test_activation_success_deduplicates_references_and_recovers_on_restart(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, catalogue_path, draft_path = self._manager(directory)
+            active = provider.active
+            create = manager.mutate(
+                "create",
+                active.active_revision,
+                "classic_fm_alias",
+                self._media("classic_fm", "Classic alias"),
+            )
+            entry = integration.ConfigEntry()
+            hass = FakeHass([entry])
+
+            async def resolve(call):
+                return {"returned_record_version": 1, **call.data}
+
+            async def scenario():
+                await integration.async_setup(hass, {})
+                hass.data[const.DOMAIN][entry.entry_id] = provider
+                hass.services.async_register(
+                    const.MEDIACAT_DOMAIN,
+                    const.MEDIACAT_RESOLVE_MEDIA_RECORD,
+                    resolve,
+                )
+                return await hass.services.handler(
+                    const.DOMAIN, const.SERVICE_ACTIVATE_INTENT_CATALOGUE
+                )(
+                    integration.ServiceCall(
+                        {"expected_revision": create["draft_revision"]}
+                    )
+                )
+
+            visibility = []
+            original_publish = provider.publish
+
+            def observed_publish(replacement):
+                visibility.append(provider.lookup("classic_fm_alias")["found"])
+                original_publish(replacement)
+                visibility.append(provider.lookup("classic_fm_alias")["found"])
+
+            with patch.object(provider, "publish", side_effect=observed_publish):
+                response = asyncio.run(scenario())
+
+            self.assertTrue(response["ok"])
+            self.assertEqual(visibility, [False, True])
+            probes = [call[2] for call in hass.services.calls]
+            self.assertEqual(len(probes), 7)
+            self.assertEqual(len({tuple(sorted(probe.items())) for probe in probes}), 7)
+            self.assertFalse(draft_path.exists())
+            self.assertEqual(catalogue.load_registry(catalogue_path).active_revision,
+                             response["active_revision"])
+            status = manager.status()
+            self.assertEqual(status["active_revision"], status["persisted_revision"])
+            self.assertIsNone(status["last_activation_error"])
+            self.assertEqual(hass.config_entries.reload_calls, [])
+
+            restarted = catalogue.CatalogueProvider()
+            restarted.publish(catalogue.load_registry(catalogue_path))
+            restarted_manager = administration.AdministrationManager(
+                restarted, catalogue_path, draft_path
+            )
+            self.assertTrue(restarted.lookup("classic_fm_alias")["found"])
+            next_edit = restarted_manager.mutate(
+                "create", restarted.active.active_revision, "evening", self._routine()
+            )
+            self.assertTrue(next_edit["ok"])
+
+    def test_activation_distinguishes_absent_not_found_and_operational_failure(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, catalogue_path, draft_path = self._manager(directory)
+            create = manager.mutate(
+                "create",
+                provider.active.active_revision,
+                "missing_media",
+                self._media("missing_item"),
+            )
+            prior_active = provider.active
+            prior_persisted = catalogue_path.read_bytes()
+            prior_draft = draft_path.read_bytes()
+            entry = integration.ConfigEntry()
+
+            async def activate_with(handler=None):
+                hass = FakeHass([entry])
+                await integration.async_setup(hass, {})
+                hass.data[const.DOMAIN][entry.entry_id] = provider
+                if handler is not None:
+                    hass.services.async_register(
+                        const.MEDIACAT_DOMAIN,
+                        const.MEDIACAT_RESOLVE_MEDIA_RECORD,
+                        handler,
+                    )
+                response = await hass.services.handler(
+                    const.DOMAIN, const.SERVICE_ACTIVATE_INTENT_CATALOGUE
+                )(
+                    integration.ServiceCall(
+                        {"expected_revision": create["draft_revision"]}
+                    )
+                )
+                return response
+
+            absent = asyncio.run(activate_with())
+            self.assertEqual(absent["error"]["refinement"], "mediacat_unavailable")
+
+            async def not_found(call):
+                if call.data["item_id"] == "missing_item":
+                    raise sys.modules[
+                        "homeassistant.exceptions"
+                    ].ServiceValidationError("not found")
+                return {"returned_record_version": 1}
+
+            missing = asyncio.run(activate_with(not_found))
+            self.assertEqual(missing["error"]["code"], "activation_failed")
+            self.assertEqual(
+                missing["error"]["refinement"], "referenced_target_not_found"
+            )
+            self.assertEqual(len(missing["errors"]), 1)
+
+            async def unavailable(call):
+                raise sys.modules["homeassistant.exceptions"].HomeAssistantError(
+                    "registry unavailable"
+                )
+
+            unavailable_response = asyncio.run(activate_with(unavailable))
+            self.assertEqual(
+                unavailable_response["error"]["code"], "dependency_unavailable"
+            )
+            self.assertIs(provider.active, prior_active)
+            self.assertEqual(catalogue_path.read_bytes(), prior_persisted)
+            self.assertEqual(draft_path.read_bytes(), prior_draft)
+            status = manager.status()
+            self.assertEqual(
+                status["last_activation_error"]["refinement"], "mediacat_unavailable"
+            )
+
+    def test_invalid_draft_and_persisted_replace_failure_retain_prior_state(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, catalogue_path, draft_path = self._manager(directory)
+            prior_active = provider.active
+            prior_persisted = catalogue_path.read_bytes()
+            draft_path.write_text("records: [torn", encoding="utf-8")
+            invalid_revision = manager.status()["draft_revision"]
+            preparation, invalid = manager.prepare_activation(invalid_revision)
+            self.assertIsNone(preparation)
+            self.assertEqual(invalid["error"]["refinement"], "candidate_invalid")
+            self.assertIs(provider.active, prior_active)
+            self.assertEqual(catalogue_path.read_bytes(), prior_persisted)
+
+            manager.discard(invalid_revision)
+            create = manager.mutate(
+                "create", prior_active.active_revision, "evening", self._routine()
+            )
+            preparation, failure = manager.prepare_activation(create["draft_revision"])
+            self.assertIsNone(failure)
+            with patch.object(administration.os, "replace", side_effect=OSError("fail")):
+                replace_failure = manager.commit_activation(
+                    create["draft_revision"], preparation
+                )
+            self.assertEqual(
+                replace_failure["error"]["refinement"], "persisted_replace_failed"
+            )
+            self.assertIs(provider.active, prior_active)
+            self.assertEqual(catalogue_path.read_bytes(), prior_persisted)
+            self.assertTrue(draft_path.exists())
+
+    def test_post_commit_restart_reconciles_unknown_outcome(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, catalogue_path, draft_path = self._manager(directory)
+            create = manager.mutate(
+                "create", provider.active.active_revision, "evening", self._routine()
+            )
+            preparation, failure = manager.prepare_activation(create["draft_revision"])
+            self.assertIsNone(failure)
+            self.assertIsNone(
+                manager.commit_activation(create["draft_revision"], preparation)
+            )
+
+            # Simulate process loss after the commit point and before the
+            # in-memory publish/response. Cold start reconciles from persisted state.
+            self.assertFalse(draft_path.exists())
+            self.assertFalse(provider.lookup("evening")["found"])
+            restarted = catalogue.CatalogueProvider()
+            restarted.publish(catalogue.load_registry(catalogue_path))
+            self.assertTrue(restarted.lookup("evening")["found"])
+            self.assertEqual(
+                restarted.active.active_revision, preparation.registry.active_revision
+            )
+
+    def test_concurrent_writer_and_activation_are_serialized(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, _, _ = self._manager(directory)
+            first = manager.mutate(
+                "create", provider.active.active_revision, "evening", self._routine()
+            )
+            entry = integration.ConfigEntry()
+            hass = FakeHass([entry])
+
+            async def resolve(call):
+                return {"returned_record_version": 1}
+
+            async def scenario():
+                await integration.async_setup(hass, {})
+                hass.data[const.DOMAIN][entry.entry_id] = provider
+                hass.services.async_register(
+                    const.MEDIACAT_DOMAIN,
+                    const.MEDIACAT_RESOLVE_MEDIA_RECORD,
+                    resolve,
+                )
+                writer = hass.services.handler(
+                    const.DOMAIN, const.SERVICE_CREATE_INTENT_RECORD
+                )
+                activate = hass.services.handler(
+                    const.DOMAIN, const.SERVICE_ACTIVATE_INTENT_CATALOGUE
+                )
+                return await asyncio.gather(
+                    writer(
+                        integration.ServiceCall(
+                            {
+                                "expected_revision": first["draft_revision"],
+                                "intent_id": "late_evening",
+                                "record": self._routine("Late evening"),
+                            }
+                        )
+                    ),
+                    activate(
+                        integration.ServiceCall(
+                            {"expected_revision": first["draft_revision"]}
+                        )
+                    ),
+                )
+
+            writer_response, activation_response = asyncio.run(scenario())
+            self.assertTrue(writer_response["ok"])
+            self.assertEqual(
+                activation_response["error"]["code"], "stale_revision"
+            )
+            self.assertFalse(provider.lookup("evening")["found"])
+            self.assertEqual(
+                manager.status()["draft_revision"], writer_response["draft_revision"]
+            )
+
 
 class PackagingAndAdapterTests(unittest.TestCase):
     def test_manifest_and_hacs_metadata(self) -> None:
         manifest = json.loads((INTEGRATION / "manifest.json").read_text())
         hacs = json.loads((ROOT / "hacs.json").read_text())
         self.assertEqual(manifest["domain"], const.DOMAIN)
-        self.assertEqual(manifest["version"], "0.2.0")
+        self.assertEqual(manifest["version"], "0.3.0")
         self.assertTrue(manifest["config_flow"])
         self.assertTrue(manifest["single_config_entry"])
         self.assertEqual(hacs, {"name": "ASTV Intent Catalogue"})

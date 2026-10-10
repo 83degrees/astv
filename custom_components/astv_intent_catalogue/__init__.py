@@ -23,6 +23,9 @@ from .const import (
     CATALOGUE_PATH,
     DOMAIN,
     DRAFT_PATH,
+    MEDIACAT_DOMAIN,
+    MEDIACAT_RESOLVE_MEDIA_RECORD,
+    SERVICE_ACTIVATE_INTENT_CATALOGUE,
     SERVICE_CREATE_INTENT_RECORD,
     SERVICE_DELETE_INTENT_RECORD,
     SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
@@ -75,6 +78,7 @@ DELETE_RECORD_SCHEMA = vol.Schema(
     }
 )
 DISCARD_SCHEMA = vol.Schema({vol.Required("expected_revision"): str})
+ACTIVATE_SCHEMA = vol.Schema({vol.Required("expected_revision"): str})
 
 
 async def async_refresh(
@@ -189,6 +193,71 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
                 manager.discard, call.data["expected_revision"]
             )
 
+    async def async_activate(call: ServiceCall) -> ServiceResponse:
+        manager = loaded_administration()
+        if manager is None:
+            return provider_unavailable()
+        expected_revision = call.data["expected_revision"]
+        async with manager.lock:
+            preparation, failure = await hass.async_add_executor_job(
+                manager.prepare_activation, expected_revision
+            )
+            if failure is not None:
+                return failure
+            assert preparation is not None
+            if not hass.services.has_service(
+                MEDIACAT_DOMAIN, MEDIACAT_RESOLVE_MEDIA_RECORD
+            ):
+                return manager.activation_failure(
+                    "dependency_unavailable",
+                    "mediacat_unavailable",
+                    "The MediaCat lookup action is unavailable.",
+                    draft_revision=expected_revision,
+                )
+            missing: list[dict[str, str]] = []
+            for catalogue_id, item_id in preparation.references:
+                try:
+                    await hass.services.async_call(
+                        MEDIACAT_DOMAIN,
+                        MEDIACAT_RESOLVE_MEDIA_RECORD,
+                        {"catalogue_id": catalogue_id, "item_id": item_id},
+                        blocking=True,
+                        return_response=True,
+                    )
+                except ServiceValidationError:
+                    missing.append(
+                        {
+                            "catalogue_id": catalogue_id,
+                            "item_id": item_id,
+                            "code": "referenced_target_not_found",
+                        }
+                    )
+                except Exception:
+                    # The verified MediaCat baseline reserves
+                    # ServiceValidationError for structurally valid not-found
+                    # requests. Any other provider/service-bus exception is an
+                    # operational dependency failure; diagnostics are not parsed.
+                    return manager.activation_failure(
+                        "dependency_unavailable",
+                        "mediacat_unavailable",
+                        "MediaCat could not verify the staged references.",
+                        draft_revision=expected_revision,
+                    )
+            if missing:
+                return manager.activation_failure(
+                    "activation_failed",
+                    "referenced_target_not_found",
+                    "One or more MediaCat targets could not be resolved.",
+                    draft_revision=expected_revision,
+                    errors=missing,
+                )
+            commit_failure = await hass.async_add_executor_job(
+                manager.commit_activation, expected_revision, preparation
+            )
+            if commit_failure is not None:
+                return commit_failure
+            return manager.publish_activation(preparation)
+
     read_actions = (
         (SERVICE_GET_ADMINISTRATION_CAPABILITIES, async_capabilities, EMPTY_SCHEMA),
         (SERVICE_GET_ADMINISTRATION_STATUS, async_status, EMPTY_SCHEMA),
@@ -215,6 +284,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         (SERVICE_UPDATE_INTENT_RECORD, async_update, MUTATE_RECORD_SCHEMA),
         (SERVICE_DELETE_INTENT_RECORD, async_delete, DELETE_RECORD_SCHEMA),
         (SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT, async_discard, DISCARD_SCHEMA),
+        (SERVICE_ACTIVATE_INTENT_CATALOGUE, async_activate, ACTIVATE_SCHEMA),
     )
     for service, handler, schema in manage_actions:
         async_register_admin_service(

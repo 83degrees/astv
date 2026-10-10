@@ -57,11 +57,14 @@ Home Assistant response actions directly after discovery. A manager must use
 normalized records and opaque revisions; it must not read or write ASTV YAML or
 depend on serialization.
 
-MediaCat availability is required only for explicit activation of a draft that
-contains media references. Missing `mediacat.resolve_media_record` or an
-operational failure is `dependency_unavailable`; a registered action's explicit
-well-formed not-found result is `activation_failed`. Diagnostic message parsing
-is forbidden.
+MediaCat action availability is required for every explicit activation,
+including activation of a draft with no media references: the current handler
+checks that `mediacat.resolve_media_record` is registered before iterating the
+deduplicated references. An absent action is `dependency_unavailable`. For each
+reference, `ServiceValidationError` raised by the registered provider is the
+verified not-found path and becomes `activation_failed`; any other provider or
+service-bus exception is `dependency_unavailable`. ASTV does not classify the
+response payload or parse diagnostic message text.
 
 AdvNFC owns NFC assignments and reverse-reference lookup. A client may call the
 deployed AdvNFC interface only after capability discovery advertises its query

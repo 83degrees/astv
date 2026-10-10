@@ -6,6 +6,7 @@ import asyncio
 import base64
 import binascii
 from dataclasses import dataclass
+from datetime import datetime, timezone
 import json
 import os
 from pathlib import Path
@@ -31,6 +32,7 @@ from .const import (
     ADMIN_INTERFACE_VERSION,
     SCHEMA_ID,
     SCHEMA_VERSION,
+    SERVICE_ACTIVATE_INTENT_CATALOGUE,
     SERVICE_CREATE_INTENT_RECORD,
     SERVICE_DELETE_INTENT_RECORD,
     SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
@@ -53,6 +55,14 @@ class StoredObservation:
     state: State
     revision: str | None = None
     registry: ActiveRegistry | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ActivationPreparation:
+    """A completely parsed, validated, immutable activation candidate."""
+
+    registry: ActiveRegistry
+    references: tuple[tuple[str, str], ...]
 
 
 def _common() -> dict[str, Any]:
@@ -187,6 +197,7 @@ class AdministrationManager:
         self.catalogue_path = catalogue_path
         self.draft_path = draft_path
         self.lock = asyncio.Lock()
+        self._last_activation_error: dict[str, str] | None = None
 
     @staticmethod
     def capabilities() -> dict[str, Any]:
@@ -194,7 +205,7 @@ class AdministrationManager:
         return _success(
             mode="managed",
             mutation_supported=True,
-            activation_applicable=False,
+            activation_applicable=True,
             authorization={
                 "read": "home_assistant_service_call",
                 "manage": "home_assistant_admin_service",
@@ -211,6 +222,8 @@ class AdministrationManager:
                 "draft.delete",
                 "draft.discard",
                 "concurrency.expected_revision",
+                "activation.explicit",
+                "references.mediacat.activation_check",
             ],
             operations={
                 "discovery": SERVICE_GET_ADMINISTRATION_CAPABILITIES,
@@ -223,6 +236,7 @@ class AdministrationManager:
                 "update": SERVICE_UPDATE_INTENT_RECORD,
                 "delete": SERVICE_DELETE_INTENT_RECORD,
                 "discard": SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
+                "activate": SERVICE_ACTIVATE_INTENT_CATALOGUE,
             },
             limits={"list_default": 100, "list_maximum": 200},
         )
@@ -259,7 +273,11 @@ class AdministrationManager:
             draft_count=(
                 len(draft_registry.records) if draft_registry is not None else None
             ),
-            last_activation_error=None,
+            last_activation_error=(
+                dict(self._last_activation_error)
+                if self._last_activation_error is not None
+                else None
+            ),
         )
 
     def list_records(self, limit: Any = 100, cursor: Any = None) -> dict[str, Any]:
@@ -547,11 +565,158 @@ class AdministrationManager:
                 active_revision=active.active_revision if active is not None else None,
                 draft_revision=draft.revision,
             )
+        self._last_activation_error = None
         return _success(
             operation="discard",
             prior_revision=draft.revision,
             draft_revision=None,
             editable_revision=active.active_revision if active is not None else None,
             active_revision=active.active_revision if active is not None else None,
+            activation_required=False,
+        )
+
+    def prepare_activation(
+        self, expected_revision: Any
+    ) -> tuple[ActivationPreparation | None, dict[str, Any] | None]:
+        """Re-read and fully validate the exact guarded durable draft."""
+        active = self.provider.active
+        draft = _observe(self.draft_path, absent_allowed=True)
+        if draft.state == "absent":
+            return None, _failure(
+                "not_found",
+                "draft_not_found",
+                "No durable draft exists.",
+                active_revision=active.active_revision if active is not None else None,
+            )
+        if draft.state == "unavailable" or draft.revision is None:
+            return None, self.activation_failure(
+                "dependency_unavailable",
+                "persistence_unavailable",
+                "The durable draft cannot be inspected.",
+                draft_revision=draft.revision,
+            )
+        if expected_revision != draft.revision:
+            return None, _failure(
+                "stale_revision",
+                "stale_draft_revision",
+                "The draft changed; refresh status before retrying.",
+                active_revision=active.active_revision if active is not None else None,
+                draft_revision=draft.revision,
+                editable_revision=draft.revision,
+            )
+        if active is None:
+            return None, self.activation_failure(
+                "dependency_unavailable",
+                "active_state_unavailable",
+                "No valid active catalogue is available.",
+                draft_revision=draft.revision,
+            )
+        if draft.state == "invalid" or draft.registry is None:
+            return None, self.activation_failure(
+                "activation_failed",
+                "candidate_invalid",
+                "The durable draft is not a valid schema-v1 catalogue.",
+                draft_revision=draft.revision,
+            )
+        references = tuple(
+            sorted(
+                {
+                    (record["params"]["catalogue_id"], record["params"]["item_id"])
+                    for record in draft.registry.records.values()
+                    if record["intent"] == "media.play_source"
+                }
+            )
+        )
+        return ActivationPreparation(draft.registry, references), None
+
+    def activation_failure(
+        self,
+        code: str,
+        refinement: str,
+        message: str,
+        *,
+        draft_revision: str | None = None,
+        errors: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """Record and return one expected pre-commit activation failure."""
+        active = self.provider.active
+        persisted = _observe(self.catalogue_path, absent_allowed=False)
+        draft = _observe(self.draft_path, absent_allowed=True)
+        observed_draft_revision = (
+            draft_revision if draft_revision is not None else draft.revision
+        )
+        self._last_activation_error = {
+            "code": code,
+            "refinement": refinement,
+            "message": message,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        fields: dict[str, Any] = {
+            "active_revision": active.active_revision if active is not None else None,
+            "persisted_revision": persisted.revision,
+            "draft_revision": observed_draft_revision,
+            "activation_required": bool(
+                draft.registry is not None
+                and active is not None
+                and draft.registry.active_revision != active.active_revision
+            ),
+        }
+        if errors is not None:
+            fields["errors"] = errors
+        return _failure(code, refinement, message, **fields)
+
+    def commit_activation(
+        self, expected_revision: str, preparation: ActivationPreparation
+    ) -> dict[str, Any] | None:
+        """Perform the single persisted-state commit point by consuming the draft."""
+        current = _observe(self.draft_path, absent_allowed=True)
+        if current.revision != expected_revision:
+            return _failure(
+                "stale_revision",
+                "stale_draft_revision",
+                "The draft changed; refresh status before retrying.",
+                active_revision=(
+                    self.provider.active.active_revision
+                    if self.provider.active is not None
+                    else None
+                ),
+                draft_revision=current.revision,
+                editable_revision=current.revision,
+            )
+        if (
+            current.state != "valid"
+            or current.registry is None
+            or current.registry.active_revision != preparation.registry.active_revision
+        ):
+            return self.activation_failure(
+                "activation_failed",
+                "candidate_invalid",
+                "The durable draft changed or became invalid before activation.",
+                draft_revision=current.revision,
+            )
+        try:
+            os.replace(self.draft_path, self.catalogue_path)
+        except OSError:
+            return self.activation_failure(
+                "activation_failed",
+                "persisted_replace_failed",
+                "The persisted catalogue could not be replaced atomically.",
+                draft_revision=current.revision,
+            )
+        return None
+
+    def publish_activation(
+        self, preparation: ActivationPreparation
+    ) -> dict[str, Any]:
+        """Publish the prepared immutable registry without further awaiting or I/O."""
+        replacement = preparation.registry
+        self.provider.publish(replacement)
+        self._last_activation_error = None
+        return _success(
+            operation="activate",
+            active_revision=replacement.active_revision,
+            persisted_revision=replacement.active_revision,
+            draft_revision=None,
+            active_count=len(replacement.records),
             activation_required=False,
         )

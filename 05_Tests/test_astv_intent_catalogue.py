@@ -1081,6 +1081,197 @@ class AdministrationContractTests(unittest.TestCase):
             )
 
 
+class InteroperabilityRegressionTests(unittest.TestCase):
+    def _manager(self, directory):
+        catalogue_path = Path(directory) / "catalogue.yaml"
+        draft_path = Path(directory) / "draft.yaml"
+        catalogue_path.write_bytes(
+            (FIXTURES / "valid" / "current_baseline_migrated.yaml").read_bytes()
+        )
+        provider = catalogue.CatalogueProvider()
+        provider.publish(catalogue.load_registry(catalogue_path))
+        manager = administration.AdministrationManager(
+            provider, catalogue_path, draft_path
+        )
+        provider.administration = manager
+        return provider, manager, catalogue_path, draft_path
+
+    @staticmethod
+    def _routine(title="Evening"):
+        return {
+            "intent": "routine.run",
+            "title": title,
+            "params": {},
+            "routine": "evening",
+        }
+
+    def test_manager_independent_service_lifecycle_and_exact_versions(self) -> None:
+        """Exercise the complete public lifecycle without a product manager."""
+        with TemporaryDirectory() as directory:
+            provider, manager, _, draft_path = self._manager(directory)
+            entry = integration.ConfigEntry()
+            hass = FakeHass([entry])
+
+            async def resolve_media(call):
+                return {"returned_record_version": 1, **call.data}
+
+            async def call(service, data=None):
+                return await hass.services.handler(const.DOMAIN, service)(
+                    integration.ServiceCall(data or {})
+                )
+
+            async def scenario():
+                await integration.async_setup(hass, {})
+                hass.data[const.DOMAIN][entry.entry_id] = provider
+                hass.services.async_register(
+                    const.MEDIACAT_DOMAIN,
+                    const.MEDIACAT_RESOLVE_MEDIA_RECORD,
+                    resolve_media,
+                )
+
+                capabilities = await call(
+                    const.SERVICE_GET_ADMINISTRATION_CAPABILITIES
+                )
+                status = await call(const.SERVICE_GET_ADMINISTRATION_STATUS)
+                listed = await call(
+                    const.SERVICE_LIST_INTENT_RECORDS, {"limit": 200}
+                )
+                found = await call(
+                    const.SERVICE_GET_INTENT_RECORD,
+                    {"intent_id": "  CLASSIC_FM "},
+                )
+                validated_record = await call(
+                    const.SERVICE_VALIDATE_INTENT_RECORD,
+                    {"intent_id": "interop_probe", "record": self._routine()},
+                )
+                validated_candidate = await call(
+                    const.SERVICE_VALIDATE_INTENT_CATALOGUE,
+                    {
+                        "candidate": {
+                            "schema_id": const.SCHEMA_ID,
+                            "schema_version": const.SCHEMA_VERSION,
+                            "records": {"interop_probe": self._routine()},
+                        }
+                    },
+                )
+
+                created = await call(
+                    const.SERVICE_CREATE_INTENT_RECORD,
+                    {
+                        "expected_revision": status["editable_revision"],
+                        "intent_id": "interop_probe",
+                        "record": self._routine(),
+                    },
+                )
+                updated = await call(
+                    const.SERVICE_UPDATE_INTENT_RECORD,
+                    {
+                        "expected_revision": created["draft_revision"],
+                        "intent_id": "interop_probe",
+                        "record": self._routine("Updated probe"),
+                    },
+                )
+                deleted = await call(
+                    const.SERVICE_DELETE_INTENT_RECORD,
+                    {
+                        "expected_revision": updated["draft_revision"],
+                        "intent_id": "interop_probe",
+                    },
+                )
+                discarded = await call(
+                    const.SERVICE_DISCARD_INTENT_CATALOGUE_DRAFT,
+                    {"expected_revision": deleted["draft_revision"]},
+                )
+
+                activation_create = await call(
+                    const.SERVICE_CREATE_INTENT_RECORD,
+                    {
+                        "expected_revision": discarded["editable_revision"],
+                        "intent_id": "interop_probe",
+                        "record": self._routine(),
+                    },
+                )
+                activated = await call(
+                    const.SERVICE_ACTIVATE_INTENT_CATALOGUE,
+                    {"expected_revision": activation_create["draft_revision"]},
+                )
+                activated_record = await call(
+                    const.SERVICE_GET_INTENT_RECORD,
+                    {"intent_id": "interop_probe"},
+                )
+                final_status = await call(
+                    const.SERVICE_GET_ADMINISTRATION_STATUS
+                )
+                return {
+                    "capabilities": capabilities,
+                    "status": status,
+                    "listed": listed,
+                    "found": found,
+                    "validated_record": validated_record,
+                    "validated_candidate": validated_candidate,
+                    "created": created,
+                    "updated": updated,
+                    "deleted": deleted,
+                    "discarded": discarded,
+                    "activated": activated,
+                    "activated_record": activated_record,
+                    "final_status": final_status,
+                }
+
+            results = asyncio.run(scenario())
+
+            for response in results.values():
+                self.assertTrue(response["ok"])
+                self.assertEqual(response["interface_id"], const.ADMIN_INTERFACE_ID)
+                self.assertEqual(
+                    response["interface_version"], const.ADMIN_INTERFACE_VERSION
+                )
+                self.assertEqual(response["schema_id"], const.SCHEMA_ID)
+                self.assertEqual(response["schema_version"], const.SCHEMA_VERSION)
+
+            self.assertEqual(results["listed"]["total_count"], 8)
+            self.assertEqual(
+                results["found"]["normalized_intent_id"], "classic_fm"
+            )
+            self.assertTrue(results["validated_record"]["valid"])
+            self.assertTrue(results["validated_candidate"]["valid"])
+            self.assertFalse(draft_path.exists())
+            self.assertEqual(results["activated"]["active_count"], 9)
+            self.assertEqual(
+                results["activated"]["active_revision"],
+                results["activated"]["persisted_revision"],
+            )
+            self.assertEqual(
+                results["activated_record"]["record"]["title"], "Evening"
+            )
+            self.assertEqual(results["final_status"]["draft_state"], "absent")
+            self.assertFalse(results["final_status"]["activation_required"])
+
+    def test_advnfc_is_optional_and_no_tag_assignments_are_stored(self) -> None:
+        capabilities = administration.AdministrationManager.capabilities()
+        advertised = json.dumps(capabilities, sort_keys=True).lower()
+        self.assertNotIn("advnfc", advertised)
+        self.assertNotIn("tag_mapping", advertised)
+
+        runtime_source = "\n".join(
+            (INTEGRATION / name).read_text(encoding="utf-8")
+            for name in ("__init__.py", "administration.py", "catalogue.py", "const.py")
+        ).lower()
+        self.assertNotIn("advnfc", runtime_source)
+        self.assertNotIn("tag_mapping", runtime_source)
+
+        active = _load(FIXTURES / "valid" / "current_baseline_migrated.yaml")
+        serialized = json.dumps(catalogue.registry_document(active), sort_keys=True)
+        self.assertNotIn("uid", serialized)
+        self.assertNotIn("tag_mapping", serialized)
+
+        contract = (
+            ROOT / "03_Contracts" / "ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("AdvNFC owns stored NFC mappings", contract)
+        self.assertIn("No matches is a successful empty AdvNFC result", contract)
+
+
 class PackagingAndAdapterTests(unittest.TestCase):
     def test_manifest_and_hacs_metadata(self) -> None:
         manifest = json.loads((INTEGRATION / "manifest.json").read_text())
@@ -1142,6 +1333,15 @@ class PackagingAndAdapterTests(unittest.TestCase):
             set(routine_dispatch["data"]),
             {"intent_context", "target_context", "execution_context"},
         )
+
+        gateway_sequence = script_definitions["astv_intent_gateway"]["sequence"]
+        self.assertEqual(
+            gateway_sequence[0]["action"], "script.astv_find_intent_record"
+        )
+        gateway_text = json.dumps(gateway_sequence)
+        self.assertIn("No Intent Record Found", gateway_text)
+        self.assertIn("script.astv_resolve_area", gateway_text)
+        self.assertIn("script.astv_select_intent_engine", gateway_text)
 
 
 if __name__ == "__main__":

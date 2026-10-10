@@ -9,3 +9,130 @@ lookup:
       example: classic_fm
       selector:
         text:
+
+get_administration_capabilities:
+  name: Get administration capabilities
+  description: Returns the callable ASTV Intent Catalogue administration operations.
+
+get_administration_status:
+  name: Get administration status
+  description: Returns active, persisted, and durable draft state identities.
+
+list_intent_records:
+  name: List active intent records
+  description: Returns one ordered page from the immutable active catalogue.
+  fields:
+    limit:
+      name: Limit
+      description: Page size from 1 through 200.
+      default: 100
+      selector:
+        number:
+          min: 1
+          max: 200
+          mode: box
+    cursor:
+      name: Cursor
+      description: Opaque cursor returned by the preceding page.
+      selector:
+        text:
+
+get_intent_record:
+  name: Get active intent record
+  description: Returns one normalized record from the immutable active catalogue.
+  fields:
+    intent_id:
+      name: Intent ID
+      required: true
+      selector:
+        text:
+
+validate_intent_record:
+  name: Validate intent record
+  description: Admin-only side-effect-free validation of one schema-v1 record.
+  fields:
+    intent_id:
+      name: Intent ID
+      required: true
+      selector:
+        text:
+    record:
+      name: Record
+      required: true
+      selector:
+        object:
+
+validate_intent_catalogue:
+  name: Validate intent catalogue
+  description: Admin-only side-effect-free validation of a normalized complete candidate.
+  fields:
+    candidate:
+      name: Candidate
+      required: true
+      selector:
+        object:
+
+create_intent_record:
+  name: Stage intent record creation
+  description: Admin-only guarded creation in the single durable shared draft.
+  fields:
+    expected_revision:
+      name: Expected revision
+      required: true
+      selector:
+        text:
+    intent_id:
+      name: Intent ID
+      required: true
+      selector:
+        text:
+    record:
+      name: Record
+      required: true
+      selector:
+        object:
+
+update_intent_record:
+  name: Stage intent record update
+  description: Admin-only guarded complete-record replacement in the durable draft.
+  fields:
+    expected_revision:
+      name: Expected revision
+      required: true
+      selector:
+        text:
+    intent_id:
+      name: Intent ID
+      required: true
+      selector:
+        text:
+    record:
+      name: Record
+      required: true
+      selector:
+        object:
+
+delete_intent_record:
+  name: Stage intent record deletion
+  description: Admin-only guarded deletion from the durable draft.
+  fields:
+    expected_revision:
+      name: Expected revision
+      required: true
+      selector:
+        text:
+    intent_id:
+      name: Intent ID
+      required: true
+      selector:
+        text:
+
+discard_intent_catalogue_draft:
+  name: Discard intent catalogue draft
+  description: Admin-only guarded removal of the single durable shared draft.
+  fields:
+    expected_revision:
+      name: Expected revision
+      required: true
+      selector:
+        text:

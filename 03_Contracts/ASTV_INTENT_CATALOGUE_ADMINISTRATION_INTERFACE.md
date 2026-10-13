@@ -1,13 +1,13 @@
 # ASTV Intent Catalogue Administration Interface
 
 **Interface ID:** astv.intent_catalogue.administration  
-**Interface version:** 1.0.0  
-**Candidate extension:** 1.1.0 draft-read design proposed by ASTV-358; not
-implemented, advertised or runtime-active
+**Interface version:** 1.1.0
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
-**Status:** Current v1.0.0 interface with explicit activation; runtime-active on
-`starburst` through the accepted HACS Beta `v0.3.0-beta.da8e078`; stable
-integration release `v0.3.0` published but not installed on `starburst`
+**Status:** v1.1.0 implementation candidate in integration v0.4.0; not merged,
+deployed, advertised or runtime-active. The installed `starburst` provider
+remains interface v1.0.0 through accepted HACS Beta
+`v0.3.0-beta.da8e078`; stable integration release `v0.3.0` is published but not
+installed on `starburst`
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md
 
@@ -17,7 +17,7 @@ This is the ASTV-owned administration contract for the Intent Catalogue. It conf
 
 The interface exposes normalized catalogue records and state identities. It does not expose or accept YAML, filenames, paths, parser objects, Home Assistant storage records, backup locations or credentials. ASTV owns the schema, draft, persistence, validation, activation and concurrency boundary. A client owns its presentation and workflow.
 
-This contract does not change Intent Invocation v1.0.0, Execution Dispatch v4.1.0, the record-only script adapter, lookup normalization, unknown-runtime-ID behavior, area resolution, MediaCat runtime lookup, or execution selection. It authorizes no implementation, deployment, migration or production change.
+This contract does not change Intent Invocation v1.0.0, Execution Dispatch v4.1.0, the record-only script adapter, lookup normalization, unknown-runtime-ID behavior, area resolution, MediaCat runtime lookup, or execution selection. The accepted ASTV-358 runtime phase implements this contract as a review candidate; this document authorizes no merge, deployment, migration or production change.
 
 ## Transport and registration
 
@@ -46,8 +46,8 @@ Read operations return non-secret normalized records. Manage validation can reve
 | --- | --- | --- | --- |
 | discovery | get_administration_capabilities | read | empty |
 | status | get_administration_status | read | empty |
-| active list | list_intent_records | read | optional limit, cursor |
-| active get | get_intent_record | read | intent_id |
+| active or draft list | list_intent_records | read | optional view, limit, cursor |
+| active or draft get | get_intent_record | read | intent_id; optional view |
 | record validation | validate_intent_record | manage | intent_id, record |
 | complete validation | validate_intent_catalogue | manage | candidate |
 | staged create | create_intent_record | manage | expected_revision, intent_id, record |
@@ -81,12 +81,12 @@ change, and consumers must ignore unknown optional capabilities.
 
 AdvNFC reverse-reference discovery is not an ASTV operation and is not advertised as an ASTV capability.
 
-### Candidate v1.1.0 draft-read extension
+### v1.1.0 draft-read extension
 
-ASTV-358 proposes a backward-compatible interface-minor extension. This
-section is the reviewable contract design; it does not describe a callable
-operation in the current v1.0.0 provider and does not authorize implementation,
-deployment or activation.
+ASTV-358 defines a backward-compatible interface-minor extension. The v0.4.0
+implementation candidate makes the extension callable when that candidate is
+loaded; it is not yet merged, deployed, advertised by the installed provider or
+runtime-active and does not authorize deployment or activation.
 
 The existing `list_intent_records` and `get_intent_record` actions gain one
 optional top-level `view` field whose allowed values are `active` and `draft`.
@@ -103,7 +103,7 @@ extensible with an optional enum. Separate `draft.list` and `draft.get` action
 names would duplicate pagination, normalization and error semantics without a
 compatibility need.
 
-When and only when the extension is implemented, registered and tested:
+The v0.4.0 implementation candidate:
 
 - every ASTV handler response reports `interface_version: "1.1.0"`, including
   discovery, status, active reads and unchanged manage operations, while the
@@ -124,12 +124,12 @@ draft does not expose serialized storage, paths, credentials or additional
 protected configuration. Validation and every state-changing action retain the
 existing manage authorization class.
 
-Every response produced by ASTV contains:
+Every administration response produced by ASTV contains:
 
 ~~~yaml
 ok: true | false
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 ~~~
@@ -147,12 +147,12 @@ Successful response:
 ~~~yaml
 ok: true
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 mode: managed
 mutation_supported: true
-activation_applicable: false
+activation_applicable: true
 authorization:
   read: home_assistant_service_call
   manage: home_assistant_admin_service
@@ -161,6 +161,8 @@ capabilities:
   - status
   - active.list
   - active.get
+  - draft.list
+  - draft.get
   - validation.record
   - validation.candidate
   - draft.create
@@ -168,17 +170,22 @@ capabilities:
   - draft.delete
   - draft.discard
   - concurrency.expected_revision
+  - activation.explicit
+  - references.mediacat.activation_check
 operations:
   discovery: get_administration_capabilities
   status: get_administration_status
   active_list: list_intent_records
   active_get: get_intent_record
+  draft_list: list_intent_records
+  draft_get: get_intent_record
   validate_record: validate_intent_record
   validate_candidate: validate_intent_catalogue
   create: create_intent_record
   update: update_intent_record
   delete: delete_intent_record
   discard: discard_intent_catalogue_draft
+  activate: activate_intent_catalogue
 limits:
   list_default: 100
   list_maximum: 200
@@ -187,7 +194,8 @@ limits:
 Discovery reports the contract, not provider health. It remains available after action registration when the config entry, active state or persistence layer is unavailable.
 
 The current v0.3.0 implementation reports `activation_applicable: true` and
-advertises the activation capabilities and callable operation mapping. The
+advertises the activation capabilities and callable operation mapping but not
+the v1.1.0 draft-read capabilities. The
 historical ASTV-334 v0.2.0 implementation reported false because it exposed no
 callable activation operation.
 
@@ -214,7 +222,7 @@ Successful response includes:
 ~~~yaml
 ok: true
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 provider_state: available
@@ -580,7 +588,7 @@ All failure rows mean ok: false with the named common code and no state change u
 | discard_intent_catalogue_draft | operation: discard, prior_revision, draft_revision: null, editable_revision, active_revision, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable |
 | activate_intent_catalogue | operation: activate, equal active/persisted revisions, draft_revision: null, active_count, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable, activation_failed |
 
-For candidate v1.1.0, the two read rows retain their existing active-view
+For v1.1.0, the two read rows retain their existing active-view
 requirements. When `view: draft` is selected, list additionally requires
 `view`, `source_revision`, `draft_revision` and `active_revision`; get requires
 the same identities plus `normalized_intent_id` when request normalization
@@ -595,7 +603,7 @@ Example guarded create success:
 ~~~yaml
 ok: true
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 operation: create
@@ -612,7 +620,7 @@ Example stale write:
 ~~~yaml
 ok: false
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 active_revision: rev-a
@@ -629,7 +637,7 @@ Example failed activation retains the draft:
 ~~~yaml
 ok: false
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 active_revision: rev-a
@@ -666,7 +674,7 @@ A provider failure response is:
 ~~~yaml
 ok: false
 interface_id: astv.intent_catalogue.administration
-interface_version: "1.0.0"
+interface_version: "1.1.0"
 schema_id: astv.intent_catalogue
 schema_version: "1.0.0"
 error:
@@ -732,7 +740,7 @@ ASTV-335 must provide automated evidence for at least:
 
 ASTV-336 must verify exact implementation/data versions, restart recovery, dependency failure isolation and compatible paired rollback before deployment handoff.
 
-ASTV-358 implementation, if separately accepted, must provide automated
+ASTV-358 implementation must provide automated
 evidence for at least:
 
 - omitted `view` and explicit `view: active` producing identical v1.1.0 active
@@ -762,7 +770,7 @@ evidence for at least:
 
 Interface, schema, integration release and revisions evolve independently. Adding optional fields, capabilities or operations is compatible within major version 1 when existing required meanings remain intact. Consumers discover before invoking and ignore unknown optional fields.
 
-Candidate v1.1.0 is an additive minor version: it adds one optional request
+Interface v1.1.0 is an additive minor version: it adds one optional request
 field, two optional capabilities, two operation aliases and draft-only response
 fields/outcomes. Omitted and explicit active views preserve v1.0.0 functional
 data, field set, cursor format, pagination, authorization and error semantics,

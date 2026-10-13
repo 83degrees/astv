@@ -46,6 +46,7 @@ from .const import (
 )
 
 State = Literal["absent", "valid", "invalid", "unavailable"]
+View = Literal["active", "draft"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +185,34 @@ def _decode_cursor(cursor: Any) -> tuple[str, str]:
     return value["revision"], value["last_id"]
 
 
+def _encode_draft_cursor(revision: str, last_id: str) -> str:
+    raw = json.dumps(
+        {"view": "draft", "revision": revision, "last_id": last_id},
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode("utf-8")
+    return base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+
+
+def _decode_draft_cursor(cursor: Any) -> tuple[str, str]:
+    if not isinstance(cursor, str) or not cursor:
+        raise ValueError("cursor must be a non-empty string")
+    try:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        value = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
+    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as err:
+        raise ValueError("cursor is invalid") from err
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"view", "revision", "last_id"}
+        or value["view"] != "draft"
+        or not isinstance(value["revision"], str)
+        or not isinstance(value["last_id"], str)
+    ):
+        raise ValueError("cursor is invalid")
+    return value["revision"], value["last_id"]
+
+
 class AdministrationManager:
     """Own normalized administration over one active provider and durable draft."""
 
@@ -215,6 +244,8 @@ class AdministrationManager:
                 "status",
                 "active.list",
                 "active.get",
+                "draft.list",
+                "draft.get",
                 "validation.record",
                 "validation.candidate",
                 "draft.create",
@@ -230,6 +261,8 @@ class AdministrationManager:
                 "status": SERVICE_GET_ADMINISTRATION_STATUS,
                 "active_list": SERVICE_LIST_INTENT_RECORDS,
                 "active_get": SERVICE_GET_INTENT_RECORD,
+                "draft_list": SERVICE_LIST_INTENT_RECORDS,
+                "draft_get": SERVICE_GET_INTENT_RECORD,
                 "validate_record": SERVICE_VALIDATE_INTENT_RECORD,
                 "validate_candidate": SERVICE_VALIDATE_INTENT_CATALOGUE,
                 "create": SERVICE_CREATE_INTENT_RECORD,
@@ -280,13 +313,20 @@ class AdministrationManager:
             ),
         )
 
-    def list_records(self, limit: Any = 100, cursor: Any = None) -> dict[str, Any]:
+    def list_records(
+        self,
+        limit: Any = 100,
+        cursor: Any = None,
+        view: View = "active",
+    ) -> dict[str, Any]:
         if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
             return _failure(
                 "invalid_request",
                 "invalid_limit",
                 "limit must be an integer from 1 through 200.",
             )
+        if view == "draft":
+            return self._list_draft_records(limit, cursor)
         active = self.provider.active
         if active is None:
             return _failure(
@@ -335,7 +375,91 @@ class AdministrationManager:
             next_cursor=next_cursor,
         )
 
-    def get_record(self, intent_id: Any) -> dict[str, Any]:
+    def _list_draft_records(self, limit: int, cursor: Any) -> dict[str, Any]:
+        active = self.provider.active
+        active_revision = active.active_revision if active is not None else None
+        draft = _observe(self.draft_path, absent_allowed=True)
+        if draft.state == "absent":
+            return _failure(
+                "not_found",
+                "draft_not_found",
+                "No durable draft exists.",
+                view="draft",
+                draft_revision=None,
+                active_revision=active_revision,
+            )
+        if draft.state in {"invalid", "unavailable"}:
+            return _failure(
+                "dependency_unavailable",
+                (
+                    "draft_state_invalid"
+                    if draft.state == "invalid"
+                    else "draft_state_unavailable"
+                ),
+                "The durable draft is invalid or unavailable.",
+                view="draft",
+                draft_revision=draft.revision,
+                active_revision=active_revision,
+            )
+        assert draft.registry is not None and draft.revision is not None
+        start = 0
+        ordered_ids = sorted(draft.registry.records)
+        if cursor is not None:
+            try:
+                cursor_revision, last_id = _decode_draft_cursor(cursor)
+            except ValueError:
+                return _failure(
+                    "invalid_request",
+                    "invalid_cursor",
+                    "The cursor is invalid for the draft view.",
+                    view="draft",
+                    draft_revision=draft.revision,
+                    active_revision=active_revision,
+                )
+            if cursor_revision != draft.revision:
+                return _failure(
+                    "stale_revision",
+                    "stale_cursor",
+                    "The draft catalogue changed; restart pagination.",
+                    view="draft",
+                    draft_revision=draft.revision,
+                    active_revision=active_revision,
+                )
+            try:
+                start = ordered_ids.index(last_id) + 1
+            except ValueError:
+                return _failure(
+                    "invalid_request",
+                    "invalid_cursor",
+                    "The cursor is invalid for the draft view.",
+                    view="draft",
+                    draft_revision=draft.revision,
+                    active_revision=active_revision,
+                )
+        selected = ordered_ids[start : start + limit]
+        next_cursor = (
+            _encode_draft_cursor(draft.revision, selected[-1])
+            if selected and start + len(selected) < len(ordered_ids)
+            else None
+        )
+        return _success(
+            view="draft",
+            source_revision=draft.revision,
+            draft_revision=draft.revision,
+            active_revision=active_revision,
+            count=len(selected),
+            total_count=len(ordered_ids),
+            records=[
+                {
+                    "intent_id": intent_id,
+                    "record": detached_record(draft.registry.records[intent_id]),
+                }
+                for intent_id in selected
+            ],
+            next_cursor=next_cursor,
+        )
+
+    def get_record(self, intent_id: Any, view: View = "active") -> dict[str, Any]:
         if intent_id is None or isinstance(intent_id, (Mapping, list, tuple, set)):
             return _failure(
                 "invalid_request", "invalid_intent_id", "intent_id must be a scalar."
@@ -347,6 +471,8 @@ class AdministrationManager:
                 "invalid_intent_id",
                 "intent_id must not be blank.",
             )
+        if view == "draft":
+            return self._get_draft_record(normalized)
         active = self.provider.active
         if active is None:
             return _failure(
@@ -366,6 +492,54 @@ class AdministrationManager:
         return _success(
             normalized_intent_id=normalized,
             active_revision=active.active_revision,
+            record=detached_record(record),
+        )
+
+    def _get_draft_record(self, normalized: str) -> dict[str, Any]:
+        active = self.provider.active
+        active_revision = active.active_revision if active is not None else None
+        draft = _observe(self.draft_path, absent_allowed=True)
+        if draft.state == "absent":
+            return _failure(
+                "not_found",
+                "draft_not_found",
+                "No durable draft exists.",
+                view="draft",
+                draft_revision=None,
+                active_revision=active_revision,
+            )
+        if draft.state in {"invalid", "unavailable"}:
+            return _failure(
+                "dependency_unavailable",
+                (
+                    "draft_state_invalid"
+                    if draft.state == "invalid"
+                    else "draft_state_unavailable"
+                ),
+                "The durable draft is invalid or unavailable.",
+                view="draft",
+                draft_revision=draft.revision,
+                active_revision=active_revision,
+            )
+        assert draft.registry is not None and draft.revision is not None
+        record = draft.registry.records.get(normalized)
+        if record is None:
+            return _failure(
+                "not_found",
+                "intent_not_found",
+                "The requested intent record does not exist in the draft.",
+                view="draft",
+                source_revision=draft.revision,
+                draft_revision=draft.revision,
+                active_revision=active_revision,
+                normalized_intent_id=normalized,
+            )
+        return _success(
+            view="draft",
+            source_revision=draft.revision,
+            draft_revision=draft.revision,
+            active_revision=active_revision,
+            normalized_intent_id=normalized,
             record=detached_record(record),
         )
 

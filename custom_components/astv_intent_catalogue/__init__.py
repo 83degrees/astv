@@ -48,15 +48,27 @@ def _lookup_value(value: Any) -> str | int | float | bool:
     return value
 
 
+def _view_value(value: Any) -> str:
+    if not isinstance(value, str) or value not in {"active", "draft"}:
+        raise vol.Invalid("view must be active or draft")
+    return value
+
+
 LOOKUP_SCHEMA = vol.Schema({vol.Required("intent_id"): _lookup_value})
 EMPTY_SCHEMA = vol.Schema({})
 LIST_SCHEMA = vol.Schema(
     {
         vol.Optional("limit", default=100): object,
         vol.Optional("cursor", default=None): object,
+        vol.Optional("view", default="active"): _view_value,
     }
 )
-GET_SCHEMA = vol.Schema({vol.Required("intent_id"): _lookup_value})
+GET_SCHEMA = vol.Schema(
+    {
+        vol.Required("intent_id"): _lookup_value,
+        vol.Optional("view", default="active"): _view_value,
+    }
+)
 VALIDATE_RECORD_SCHEMA = vol.Schema(
     {
         vol.Required("intent_id"): str,
@@ -140,13 +152,21 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         manager = loaded_administration()
         if manager is None:
             return provider_unavailable()
-        return manager.list_records(call.data.get("limit", 100), call.data.get("cursor"))
+        return await hass.async_add_executor_job(
+            manager.list_records,
+            call.data.get("limit", 100),
+            call.data.get("cursor"),
+            call.data.get("view", "active"),
+        )
 
     async def async_get(call: ServiceCall) -> ServiceResponse:
         manager = loaded_administration()
         if manager is None:
             return provider_unavailable()
-        return manager.get_record(call.data["intent_id"])
+        return await hass.async_add_executor_job(
+            manager.get_record,
+            call.data["intent_id"], call.data.get("view", "active")
+        )
 
     async def async_validate_record(call: ServiceCall) -> ServiceResponse:
         manager = loaded_administration()

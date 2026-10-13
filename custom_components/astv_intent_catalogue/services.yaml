@@ -19,9 +19,18 @@ get_administration_status:
   description: Returns active, persisted, and durable draft state identities.
 
 list_intent_records:
-  name: List active intent records
-  description: Returns one ordered page from the immutable active catalogue.
+  name: List intent records
+  description: Returns one ordered page from the selected active or durable draft catalogue view.
   fields:
+    view:
+      name: View
+      description: Catalogue view; omission selects active.
+      default: active
+      selector:
+        select:
+          options:
+            - active
+            - draft
     limit:
       name: Limit
       description: Page size from 1 through 200.
@@ -38,9 +47,18 @@ list_intent_records:
         text:
 
 get_intent_record:
-  name: Get active intent record
-  description: Returns one normalized record from the immutable active catalogue.
+  name: Get intent record
+  description: Returns one normalized record from the selected active or durable draft catalogue view.
   fields:
+    view:
+      name: View
+      description: Catalogue view; omission selects active.
+      default: active
+      selector:
+        select:
+          options:
+            - active
+            - draft
     intent_id:
       name: Intent ID
       required: true

@@ -105,8 +105,9 @@ compatibility need.
 
 When and only when the extension is implemented, registered and tested:
 
-- discovery reports `interface_version: "1.1.0"` while the record schema
-  remains `schema_version: "1.0.0"`;
+- every ASTV handler response reports `interface_version: "1.1.0"`, including
+  discovery, status, active reads and unchanged manage operations, while the
+  record schema remains `schema_version: "1.0.0"`;
 - capabilities additionally contain `draft.list` and `draft.get`;
 - operations additionally map `draft_list` to `list_intent_records` and
   `draft_get` to `get_intent_record`; and
@@ -250,9 +251,30 @@ Status itself returns ok: true when the handler can inspect administration state
 
 The request forms documented below for v1.0.0 remain valid. In candidate
 v1.1.0, omitting `view` or supplying `view: active` selects the active snapshot.
-Both forms return exactly the v1.0.0 active success or failure shape: no `view`
-or `source_revision` field is added, `active_revision` retains its existing
-meaning, and active cursors retain their existing wire format and behavior.
+Those two v1.1.0 request forms return identical results to one another for the
+same observed state. They preserve the v1.0.0 active response field set and
+operation semantics: no `view` or `source_revision` field is added;
+`active_revision`, normalized records, counts, ordering, cursor bytes,
+pagination, authorization, native transport failures and structured error
+codes/refinements retain their existing meanings and values for the same
+request and state.
+
+The complete response is deliberately not byte-for-value identical to a
+v1.0.0 response. The common `interface_version` value changes from `"1.0.0"`
+to `"1.1.0"` on every provider response so discovery and ordinary operations
+identify the contract actually in force. `interface_id`, `schema_id` and
+`schema_version` remain unchanged. Consumers must negotiate the version and
+must not assert equality of the whole v1.0.0 and v1.1.0 envelopes.
+
+| Response element | v1.0.0 | Candidate v1.1.0 active view |
+| --- | --- | --- |
+| `interface_version` | `"1.0.0"` | `"1.1.0"` intentionally |
+| `interface_id` | `astv.intent_catalogue.administration` | unchanged |
+| `schema_id`, `schema_version` | `astv.intent_catalogue`, `"1.0.0"` | unchanged |
+| active operation fields and values | existing list/get contract | unchanged for the same request and active state |
+| `view`, `source_revision` | absent | absent |
+| cursor wire value and interpretation | active revision plus last ID | unchanged |
+
 Runtime lookup is separate and unchanged.
 
 Action: astv_intent_catalogue.list_intent_records
@@ -271,6 +293,27 @@ Success returns active_revision, count for this page, total_count, records as en
 Action: astv_intent_catalogue.get_intent_record
 
 Request contains scalar intent_id. Get applies the runtime-compatible normalization string(value).trim().lower(). Null, mappings and sequences are invalid_request. Blank after normalization is invalid_request for administration get. A known ID returns normalized_intent_id, active_revision and record. A valid absent ID returns not_found; it is not an empty successful record. This differs intentionally from runtime lookup, whose found: false behavior remains unchanged.
+
+Candidate v1.1.0 omitted-view active get success demonstrates the intentional
+metadata change and absence of draft-only fields:
+
+~~~yaml
+ok: true
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.1.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+normalized_intent_id: classic_fm
+active_revision: rev-a
+record:
+  intent: media.play_source
+  title: Play Classic FM
+  params:
+    output:
+      domain: audio
+    catalogue_id: curated_media
+    item_id: classic_fm
+~~~
 
 ### Candidate v1.1.0 draft view
 
@@ -692,8 +735,10 @@ ASTV-336 must verify exact implementation/data versions, restart recovery, depen
 ASTV-358 implementation, if separately accepted, must provide automated
 evidence for at least:
 
-- omitted `view` and explicit `view: active` preserving exact v1.0.0 active
-  responses, cursor format and runtime lookup behavior;
+- omitted `view` and explicit `view: active` producing identical v1.1.0 active
+  results to one another, preserving v1.0.0 operation-specific fields, values,
+  cursor bytes and runtime lookup behavior while asserting the intentional
+  common `interface_version` change from 1.0.0 to 1.1.0;
 - top-level schema acceptance for `active` and `draft`, plus native rejection
   of an invalid enum or an unsupported v1.0.0 `view` field;
 - callable-only discovery of interface v1.1.0, `draft.list`, `draft.get`,
@@ -719,12 +764,17 @@ Interface, schema, integration release and revisions evolve independently. Addin
 
 Candidate v1.1.0 is an additive minor version: it adds one optional request
 field, two optional capabilities, two operation aliases and draft-only response
-fields/outcomes. Omitted and explicit active views preserve v1.0.0 behavior and
-response shape, the record schema remains 1.0.0, and current callers need no
-change. ASTV-350 and ASTV-351 are the intended new consumers and remain gated
-until the design is accepted and an implementation actually advertises the
-extension. No existing consumer is permitted to infer draft support from a
-product release or action name alone.
+fields/outcomes. Omitted and explicit active views preserve v1.0.0 functional
+data, field set, cursor format, pagination, authorization and error semantics,
+but every response intentionally reports the new `interface_version: "1.1.0"`.
+The record schema remains 1.0.0. Existing consumers that negotiate compatible
+major version 1 and do not require a frozen minor-version string need no
+functional change; a consumer incorrectly asserting the complete v1.0.0
+envelope must be corrected rather than hiding the new interface version.
+ASTV-350 and ASTV-351 are the intended new consumers and remain gated until the
+design is accepted and an implementation actually advertises the extension. No
+existing consumer is permitted to infer draft support from a product release or
+action name alone.
 
 Removing or renaming an operation/required field, changing an input type or normalization, weakening atomicity or retained-state guarantees, changing revision equality, changing authorization class, replacing a stable common code/refinement, or changing list/get absence semantics requires a new interface major version and consumer impact assessment.
 

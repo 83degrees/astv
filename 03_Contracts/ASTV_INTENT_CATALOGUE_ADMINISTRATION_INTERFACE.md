@@ -2,6 +2,8 @@
 
 **Interface ID:** astv.intent_catalogue.administration  
 **Interface version:** 1.0.0  
+**Candidate extension:** 1.1.0 draft-read design proposed by ASTV-358; not
+implemented, advertised or runtime-active
 **Schema ID/version:** astv.intent_catalogue / 1.0.0  
 **Status:** Current v1.0.0 interface with explicit activation; runtime-active on
 `starburst` through the accepted HACS Beta `v0.3.0-beta.da8e078`; stable
@@ -78,6 +80,48 @@ negotiated optional set, existing required meanings and operations do not
 change, and consumers must ignore unknown optional capabilities.
 
 AdvNFC reverse-reference discovery is not an ASTV operation and is not advertised as an ASTV capability.
+
+### Candidate v1.1.0 draft-read extension
+
+ASTV-358 proposes a backward-compatible interface-minor extension. This
+section is the reviewable contract design; it does not describe a callable
+operation in the current v1.0.0 provider and does not authorize implementation,
+deployment or activation.
+
+The existing `list_intent_records` and `get_intent_record` actions gain one
+optional top-level `view` field whose allowed values are `active` and `draft`.
+Omission means `active`. The implementation schema must apply the default and
+enum validation before the handler. An unsupported value therefore produces
+Home Assistant's native top-level service-schema rejection, mapped by consumers
+to `invalid_request`; the provider does not return a structured ASTV envelope
+for that pre-handler failure.
+
+The design does not add separate draft actions. Home Assistant Core 2026.9.4
+accepts optional action fields in the same registered response-only service
+shape already used by ASTV, and the current ASTV schemas are directly
+extensible with an optional enum. Separate `draft.list` and `draft.get` action
+names would duplicate pagination, normalization and error semantics without a
+compatibility need.
+
+When and only when the extension is implemented, registered and tested:
+
+- discovery reports `interface_version: "1.1.0"` while the record schema
+  remains `schema_version: "1.0.0"`;
+- capabilities additionally contain `draft.list` and `draft.get`;
+- operations additionally map `draft_list` to `list_intent_records` and
+  `draft_get` to `get_intent_record`; and
+- the action descriptions expose the optional `view` enum.
+
+The existing `active.list`, `active.get`, `active_list` and `active_get`
+identifiers remain unchanged. A v1.0.0 installation does not advertise draft
+reads and rejects the unknown `view` field before the handler. Consumers must
+negotiate through discovery and must not probe the extension by trial calls.
+
+Draft read uses the existing read authorization class. Catalogue records are
+already non-secret normalized records, and selecting the provider-owned durable
+draft does not expose serialized storage, paths, credentials or additional
+protected configuration. Validation and every state-changing action retain the
+existing manage authorization class.
 
 Every response produced by ASTV contains:
 
@@ -200,7 +244,16 @@ last_activation_error is null or a detached mapping with code, refinement, messa
 
 Status itself returns ok: true when the handler can inspect administration state, including degraded state. It returns dependency_unavailable only when administration state cannot be inspected at all.
 
-## Active list and get
+## Active and draft list/get views
+
+### Active compatibility
+
+The request forms documented below for v1.0.0 remain valid. In candidate
+v1.1.0, omitting `view` or supplying `view: active` selects the active snapshot.
+Both forms return exactly the v1.0.0 active success or failure shape: no `view`
+or `source_revision` field is added, `active_revision` retains its existing
+meaning, and active cursors retain their existing wire format and behavior.
+Runtime lookup is separate and unchanged.
 
 Action: astv_intent_catalogue.list_intent_records
 
@@ -218,6 +271,139 @@ Success returns active_revision, count for this page, total_count, records as en
 Action: astv_intent_catalogue.get_intent_record
 
 Request contains scalar intent_id. Get applies the runtime-compatible normalization string(value).trim().lower(). Null, mappings and sequences are invalid_request. Blank after normalization is invalid_request for administration get. A known ID returns normalized_intent_id, active_revision and record. A valid absent ID returns not_found; it is not an empty successful record. This differs intentionally from runtime lookup, whose found: false behavior remains unchanged.
+
+### Candidate v1.1.0 draft view
+
+The explicit draft list request is:
+
+~~~yaml
+view: draft
+limit: 100
+cursor: <opaque cursor, optional>
+~~~
+
+The explicit draft get request is:
+
+~~~yaml
+view: draft
+intent_id: evening_news
+~~~
+
+A draft read projects the complete valid provider-owned durable shared draft at
+one observed `draft_revision`. It includes staged creations and replacements
+and omits staged deletions because the draft is the complete candidate, not a
+diff. It never reads a browser cache, reconstructs edits from active state or
+falls back to active while claiming the result is draft.
+
+Draft list uses the active list's limit rules and canonical-ID ordering.
+Success returns `view: draft`, `source_revision`, `draft_revision`,
+`active_revision`, page `count`, `total_count`, detached `records`, and
+`next_cursor`. `source_revision` equals `draft_revision`; the generic field
+lets a view-aware consumer associate displayed records with their exact source,
+while `draft_revision` preserves the provider-specific state identity. The
+active revision is also returned so a consumer cannot confuse draft and active
+identity or counts.
+
+Draft cursors encode and bind the `draft` view, the observed draft revision and
+the last returned canonical ID. A cursor for another view or a malformed cursor
+returns `invalid_request/invalid_cursor`. If the cursor is well formed for the
+draft view but the current draft revision differs, the action returns
+`stale_revision/stale_cursor`; no records are returned. A concurrent staged
+mutation can therefore invalidate a later page but cannot combine records from
+two draft revisions in one page response.
+
+Draft get applies exactly the active get normalization and validation rules.
+A found record returns `view: draft`, `source_revision`, `draft_revision`,
+`active_revision`, `normalized_intent_id` and the detached `record`. An ID
+missing from the complete draft, including one removed by a staged deletion,
+returns `not_found/intent_not_found` with the normalized ID, `view: draft`, and
+the observed draft and active revisions. The provider does not reveal whether
+the ID never existed or was staged for deletion.
+
+Draft state outcomes are:
+
+| Observed draft state | Outcome | Required identity/effect |
+| --- | --- | --- |
+| absent | `not_found/draft_not_found` | `view: draft`, `draft_revision: null`; no active fallback |
+| valid | normal list/get result | exact observed `draft_revision`; detached normalized records |
+| invalid | `dependency_unavailable/draft_state_invalid` | `view: draft` and the opaque draft identity when one can be established; no records |
+| unavailable | `dependency_unavailable/draft_state_unavailable` | `view: draft`; revision is null when it cannot be established; no records |
+
+Every draft failure leaves active, persisted and draft state unchanged. A client
+may offer an explicitly labelled active fallback only after reporting the draft
+outcome; the provider never performs that fallback. After activation, the
+formerly staged content is available through active reads and draft reads return
+`draft_not_found`. After discard, active reads are unchanged and draft reads
+return `draft_not_found`.
+
+Read revisions support reconciliation, not write authorization. Before every
+guarded mutation a client must refresh `get_administration_status` and supply
+its current `editable_revision`; it must not blindly reuse a revision cached
+from a list/get response. On `stale_revision`, the client refreshes status and
+the selected view and explains the conflict rather than automatically
+overwriting or retrying a write.
+
+Candidate draft list success:
+
+~~~yaml
+ok: true
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.1.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+view: draft
+source_revision: rev-b
+draft_revision: rev-b
+active_revision: rev-a
+count: 1
+total_count: 9
+records:
+  - intent_id: evening_news
+    record:
+      intent: media.play_source
+      title: Play the evening news
+      params:
+        output:
+          domain: audio
+        catalogue_id: curated_media
+        item_id: evening_news
+next_cursor: null
+~~~
+
+Candidate absent-draft response:
+
+~~~yaml
+ok: false
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.1.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+view: draft
+draft_revision: null
+error:
+  code: not_found
+  refinement: draft_not_found
+  message: No durable intent catalogue draft exists.
+~~~
+
+Candidate staged-deletion get response:
+
+~~~yaml
+ok: false
+interface_id: astv.intent_catalogue.administration
+interface_version: "1.1.0"
+schema_id: astv.intent_catalogue
+schema_version: "1.0.0"
+view: draft
+source_revision: rev-b
+draft_revision: rev-b
+active_revision: rev-a
+normalized_intent_id: morning_news
+error:
+  code: not_found
+  refinement: intent_not_found
+  message: The intent record is absent from the selected draft.
+~~~
 
 ## Normalized candidate shape
 
@@ -351,6 +537,16 @@ All failure rows mean ok: false with the named common code and no state change u
 | discard_intent_catalogue_draft | operation: discard, prior_revision, draft_revision: null, editable_revision, active_revision, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable |
 | activate_intent_catalogue | operation: activate, equal active/persisted revisions, draft_revision: null, active_count, activation_required: false | stale_revision, not_found/draft_not_found, dependency_unavailable, activation_failed |
 
+For candidate v1.1.0, the two read rows retain their existing active-view
+requirements. When `view: draft` is selected, list additionally requires
+`view`, `source_revision`, `draft_revision` and `active_revision`; get requires
+the same identities plus `normalized_intent_id` when request normalization
+succeeds. Both draft reads additionally allow `not_found/draft_not_found` and
+`dependency_unavailable/draft_state_invalid|draft_state_unavailable`; draft get
+allows `not_found/intent_not_found`. Draft list retains the existing
+`invalid_request/invalid_cursor|invalid_limit` and
+`stale_revision/stale_cursor` outcomes.
+
 Example guarded create success:
 
 ~~~yaml
@@ -443,7 +639,7 @@ error:
 | permission_denied | mapping for native Unauthorized; normally no provider envelope |
 | unsupported_operation | operation not advertised for negotiated version |
 | stale_revision | stale_edit_revision, stale_draft_revision, stale_cursor |
-| dependency_unavailable | provider_state_unavailable, persistence_unavailable, active_state_unavailable, mediacat_unavailable |
+| dependency_unavailable | provider_state_unavailable, persistence_unavailable, active_state_unavailable, draft_state_invalid, draft_state_unavailable, mediacat_unavailable |
 | activation_failed | referenced_target_not_found, candidate_invalid, persisted_replace_failed |
 
 Transport/schema rejection raises ServiceValidationError. Manage rejection raises Unauthorized. Missing action raises ServiceNotFound. Consumers must map those native conditions to invalid_request, permission_denied and dependency_unavailable respectively when presenting the common model. They must not parse diagnostic message text.
@@ -493,9 +689,42 @@ ASTV-335 must provide automated evidence for at least:
 
 ASTV-336 must verify exact implementation/data versions, restart recovery, dependency failure isolation and compatible paired rollback before deployment handoff.
 
+ASTV-358 implementation, if separately accepted, must provide automated
+evidence for at least:
+
+- omitted `view` and explicit `view: active` preserving exact v1.0.0 active
+  responses, cursor format and runtime lookup behavior;
+- top-level schema acceptance for `active` and `draft`, plus native rejection
+  of an invalid enum or an unsupported v1.0.0 `view` field;
+- callable-only discovery of interface v1.1.0, `draft.list`, `draft.get`,
+  `draft_list` and `draft_get`;
+- staged create, update and delete projection differences between active and
+  draft list/get;
+- one durable shared draft remaining visible after a second mutation, new
+  client read and provider restart;
+- absent, invalid and unavailable draft outcomes without active masquerading
+  or state change;
+- draft ordering, boundaries, view-bound cursors, malformed/wrong-view cursor
+  rejection and mutation-driven stale-cursor rejection;
+- draft get normalization, found, missing and staged-deletion outcomes;
+- detached/JSON-serializable responses and unchanged read authorization;
+- activation moving staged content to active and clearing draft reads, and
+  discard clearing draft reads without changing active; and
+- client reconciliation guidance using fresh status `editable_revision` and no
+  automatic stale-write retry.
+
 ## Compatibility and evolution
 
 Interface, schema, integration release and revisions evolve independently. Adding optional fields, capabilities or operations is compatible within major version 1 when existing required meanings remain intact. Consumers discover before invoking and ignore unknown optional fields.
+
+Candidate v1.1.0 is an additive minor version: it adds one optional request
+field, two optional capabilities, two operation aliases and draft-only response
+fields/outcomes. Omitted and explicit active views preserve v1.0.0 behavior and
+response shape, the record schema remains 1.0.0, and current callers need no
+change. ASTV-350 and ASTV-351 are the intended new consumers and remain gated
+until the design is accepted and an implementation actually advertises the
+extension. No existing consumer is permitted to infer draft support from a
+product release or action name alone.
 
 Removing or renaming an operation/required field, changing an input type or normalization, weakening atomicity or retained-state guarantees, changing revision equality, changing authorization class, replacing a stable common code/refinement, or changing list/get absence semantics requires a new interface major version and consumer impact assessment.
 
@@ -515,3 +744,16 @@ Design evidence was checked on 2026-10-09 against:
 - AdvNFC Administration Interface candidate version 3 reverse query contract reviewed on 2026-10-09.
 
 The Home Assistant source shows SupportsResponse.ONLY requires response data, ServiceRegistry raises ServiceNotFound for an absent action, async_register_admin_service rejects non-admin user contexts but permits a context without user_id, and ServiceValidationError/Unauthorized are native error transports. These source identities are design evidence, not permanent runtime pins; implementation issues must reverify their own baselines.
+
+ASTV-358 design evidence was rechecked read-only on 2026-10-13 against the
+installed `starburst` Home Assistant Core 2026.9.4 service registry and the
+repository implementation at `origin/main` commit
+`b9b3978238f62b43119a3e9137d150384f5278bd`. The installed v0.3.0 provider
+advertised interface 1.0.0 and only active list/get; its registered response-only
+descriptors exposed `limit`/`cursor` and `intent_id` respectively, with no
+`view`. Status reported an absent draft, and a read-only one-record list call
+confirmed the documented active response and cursor shape. The repository uses
+extensible Voluptuous mappings for both actions, so an optional enum can be
+added without changing action identity, response mode or active request fields.
+This evidence establishes design viability only; it is not implementation,
+deployment or permission to mutate production state.

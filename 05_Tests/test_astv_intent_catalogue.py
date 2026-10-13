@@ -38,6 +38,44 @@ const = _load_module(f"{PACKAGE}.const", INTEGRATION / "const.py")
 catalogue = _load_module(f"{PACKAGE}.catalogue", INTEGRATION / "catalogue.py")
 
 
+def _v030_active_page(active, limit: int, cursor: str | None = None):
+    """Snapshot accepted v0.3.0 active pagination independently of v1.1 code."""
+    ordered_ids = sorted(active.records)
+    start = 0
+    if cursor is not None:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        cursor_value = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
+        assert cursor_value["revision"] == active.active_revision
+        start = ordered_ids.index(cursor_value["last_id"]) + 1
+    selected = ordered_ids[start : start + limit]
+    next_cursor = None
+    if selected and start + len(selected) < len(ordered_ids):
+        raw = json.dumps(
+            {"revision": active.active_revision, "last_id": selected[-1]},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        next_cursor = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    return {
+        "ok": True,
+        "interface_id": const.ADMIN_INTERFACE_ID,
+        "interface_version": "1.0.0",
+        "schema_id": const.SCHEMA_ID,
+        "schema_version": const.SCHEMA_VERSION,
+        "active_revision": active.active_revision,
+        "count": len(selected),
+        "total_count": len(ordered_ids),
+        "records": [
+            {
+                "intent_id": intent_id,
+                "record": catalogue.detached_record(active.records[intent_id]),
+            }
+            for intent_id in selected
+        ],
+        "next_cursor": next_cursor,
+    }
+
+
 def _install_home_assistant_stubs() -> None:
     vol = ModuleType("voluptuous")
 
@@ -660,6 +698,43 @@ class AdministrationContractTests(unittest.TestCase):
         get_view = next(key for key in get_schema if key.key == "view")
         self.assertEqual(list_view.default, "active")
         self.assertEqual(get_view.default, "active")
+
+    def test_v030_active_pagination_cursor_bytes_regression(self) -> None:
+        expected_revision = (
+            "sha256:98790a0ecc161e218e845c57a673ff6a4d54e984076b7eddc0547cd164638e8e"
+        )
+        expected_limit_two_cursors = [
+            "eyJsYXN0X2lkIjoiY2xhc3NpY19mbSIsInJldmlzaW9uIjoic2hhMjU2Ojk4NzkwYTBlY2MxNjFlMjE4ZTg0NWM1N2E2NzNmZjZhNGQ1NGU5ODQwNzZiN2VkZGMwNTQ3Y2QxNjQ2MzhlOGUifQ",
+            "eyJsYXN0X2lkIjoibGJjX25ld3MiLCJyZXZpc2lvbiI6InNoYTI1Njo5ODc5MGEwZWNjMTYxZTIxOGU4NDVjNTdhNjczZmY2YTRkNTRlOTg0MDc2YjdlZGRjMDU0N2NkMTY0NjM4ZThlIn0",
+            "eyJsYXN0X2lkIjoibW9ybmluZ19yb3V0aW5lIiwicmV2aXNpb24iOiJzaGEyNTY6OTg3OTBhMGVjYzE2MWUyMThlODQ1YzU3YTY3M2ZmNmE0ZDU0ZTk4NDA3NmI3ZWRkYzA1NDdjZDE2NDYzOGU4ZSJ9",
+            None,
+        ]
+        with TemporaryDirectory() as directory:
+            provider, manager, _, _ = self._manager(directory)
+            self.assertEqual(provider.active.active_revision, expected_revision)
+
+            for limit in (1, 2, 3, 7, 8, 20):
+                with self.subTest(limit=limit):
+                    cursor = None
+                    cursor_bytes = []
+                    while True:
+                        legacy = _v030_active_page(provider.active, limit, cursor)
+                        expected_v11 = {**legacy, "interface_version": "1.1.0"}
+                        omitted = manager.list_records(limit, cursor)
+                        explicit = manager.list_records(limit, cursor, view="active")
+
+                        self.assertEqual(omitted, expected_v11)
+                        self.assertEqual(explicit, expected_v11)
+                        self.assertEqual(omitted["next_cursor"], legacy["next_cursor"])
+                        self.assertEqual(explicit["next_cursor"], legacy["next_cursor"])
+                        cursor_bytes.append(legacy["next_cursor"])
+
+                        cursor = legacy["next_cursor"]
+                        if cursor is None:
+                            break
+
+                    if limit == 2:
+                        self.assertEqual(cursor_bytes, expected_limit_two_cursors)
 
     def test_draft_projection_pagination_state_and_restart(self) -> None:
         with TemporaryDirectory() as directory:

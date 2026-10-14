@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 from enum import Enum
 import importlib.util
 import json
@@ -35,6 +36,44 @@ package.__path__ = [str(INTEGRATION)]
 sys.modules[PACKAGE] = package
 const = _load_module(f"{PACKAGE}.const", INTEGRATION / "const.py")
 catalogue = _load_module(f"{PACKAGE}.catalogue", INTEGRATION / "catalogue.py")
+
+
+def _v030_active_page(active, limit: int, cursor: str | None = None):
+    """Snapshot accepted v0.3.0 active pagination independently of v1.1 code."""
+    ordered_ids = sorted(active.records)
+    start = 0
+    if cursor is not None:
+        padded = cursor + "=" * (-len(cursor) % 4)
+        cursor_value = json.loads(base64.b64decode(padded, altchars=b"-_", validate=True))
+        assert cursor_value["revision"] == active.active_revision
+        start = ordered_ids.index(cursor_value["last_id"]) + 1
+    selected = ordered_ids[start : start + limit]
+    next_cursor = None
+    if selected and start + len(selected) < len(ordered_ids):
+        raw = json.dumps(
+            {"revision": active.active_revision, "last_id": selected[-1]},
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+        next_cursor = base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
+    return {
+        "ok": True,
+        "interface_id": const.ADMIN_INTERFACE_ID,
+        "interface_version": "1.0.0",
+        "schema_id": const.SCHEMA_ID,
+        "schema_version": const.SCHEMA_VERSION,
+        "active_revision": active.active_revision,
+        "count": len(selected),
+        "total_count": len(ordered_ids),
+        "records": [
+            {
+                "intent_id": intent_id,
+                "record": catalogue.detached_record(active.records[intent_id]),
+            }
+            for intent_id in selected
+        ],
+        "next_cursor": next_cursor,
+    }
 
 
 def _install_home_assistant_stubs() -> None:
@@ -542,12 +581,22 @@ class AdministrationContractTests(unittest.TestCase):
         self.assertTrue(response["ok"])
         self.assertTrue(response["activation_applicable"])
         self.assertIn("activation.explicit", response["capabilities"])
+        self.assertIn("draft.list", response["capabilities"])
+        self.assertIn("draft.get", response["capabilities"])
         self.assertIn(
             "references.mediacat.activation_check", response["capabilities"]
         )
         self.assertEqual(
             response["operations"]["activate"],
             const.SERVICE_ACTIVATE_INTENT_CATALOGUE,
+        )
+        self.assertEqual(
+            response["operations"]["draft_list"],
+            const.SERVICE_LIST_INTENT_RECORDS,
+        )
+        self.assertEqual(
+            response["operations"]["draft_get"],
+            const.SERVICE_GET_INTENT_RECORD,
         )
         self.assertEqual(
             set(response["operations"].values()),
@@ -612,6 +661,211 @@ class AdministrationContractTests(unittest.TestCase):
             provider.publish(changed)
             stale = manager.list_records(2, first["next_cursor"])
             self.assertEqual(stale["error"]["code"], "stale_revision")
+
+    def test_v11_active_compatibility_and_service_view_schema(self) -> None:
+        with TemporaryDirectory() as directory:
+            _, manager, _, _ = self._manager(directory)
+            omitted_list = manager.list_records(2)
+            explicit_list = manager.list_records(2, view="active")
+            omitted_get = manager.get_record("classic_fm")
+            explicit_get = manager.get_record("classic_fm", view="active")
+
+            self.assertEqual(omitted_list, explicit_list)
+            self.assertEqual(omitted_get, explicit_get)
+            self.assertEqual(omitted_list["interface_version"], "1.1.0")
+            self.assertEqual(omitted_get["interface_version"], "1.1.0")
+            self.assertNotIn("view", omitted_list)
+            self.assertNotIn("source_revision", omitted_list)
+            self.assertNotIn("view", omitted_get)
+            cursor_value = json.loads(
+                base64.urlsafe_b64decode(
+                    omitted_list["next_cursor"]
+                    + "=" * (-len(omitted_list["next_cursor"]) % 4)
+                )
+            )
+            self.assertEqual(set(cursor_value), {"revision", "last_id"})
+
+        self.assertEqual(integration._view_value("active"), "active")
+        self.assertEqual(integration._view_value("draft"), "draft")
+        for invalid in ("other", "", None, {}):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(integration.vol.Invalid):
+                    integration._view_value(invalid)
+
+        list_schema = integration.LIST_SCHEMA.schema
+        get_schema = integration.GET_SCHEMA.schema
+        list_view = next(key for key in list_schema if key.key == "view")
+        get_view = next(key for key in get_schema if key.key == "view")
+        self.assertEqual(list_view.default, "active")
+        self.assertEqual(get_view.default, "active")
+
+    def test_v030_active_pagination_cursor_bytes_regression(self) -> None:
+        expected_revision = (
+            "sha256:98790a0ecc161e218e845c57a673ff6a4d54e984076b7eddc0547cd164638e8e"
+        )
+        expected_limit_two_cursors = [
+            "eyJsYXN0X2lkIjoiY2xhc3NpY19mbSIsInJldmlzaW9uIjoic2hhMjU2Ojk4NzkwYTBlY2MxNjFlMjE4ZTg0NWM1N2E2NzNmZjZhNGQ1NGU5ODQwNzZiN2VkZGMwNTQ3Y2QxNjQ2MzhlOGUifQ",
+            "eyJsYXN0X2lkIjoibGJjX25ld3MiLCJyZXZpc2lvbiI6InNoYTI1Njo5ODc5MGEwZWNjMTYxZTIxOGU4NDVjNTdhNjczZmY2YTRkNTRlOTg0MDc2YjdlZGRjMDU0N2NkMTY0NjM4ZThlIn0",
+            "eyJsYXN0X2lkIjoibW9ybmluZ19yb3V0aW5lIiwicmV2aXNpb24iOiJzaGEyNTY6OTg3OTBhMGVjYzE2MWUyMThlODQ1YzU3YTY3M2ZmNmE0ZDU0ZTk4NDA3NmI3ZWRkYzA1NDdjZDE2NDYzOGU4ZSJ9",
+            None,
+        ]
+        with TemporaryDirectory() as directory:
+            provider, manager, _, _ = self._manager(directory)
+            self.assertEqual(provider.active.active_revision, expected_revision)
+
+            for limit in (1, 2, 3, 7, 8, 20):
+                with self.subTest(limit=limit):
+                    cursor = None
+                    cursor_bytes = []
+                    while True:
+                        legacy = _v030_active_page(provider.active, limit, cursor)
+                        expected_v11 = {**legacy, "interface_version": "1.1.0"}
+                        omitted = manager.list_records(limit, cursor)
+                        explicit = manager.list_records(limit, cursor, view="active")
+
+                        self.assertEqual(omitted, expected_v11)
+                        self.assertEqual(explicit, expected_v11)
+                        self.assertEqual(omitted["next_cursor"], legacy["next_cursor"])
+                        self.assertEqual(explicit["next_cursor"], legacy["next_cursor"])
+                        cursor_bytes.append(legacy["next_cursor"])
+
+                        cursor = legacy["next_cursor"]
+                        if cursor is None:
+                            break
+
+                    if limit == 2:
+                        self.assertEqual(cursor_bytes, expected_limit_two_cursors)
+
+    def test_draft_projection_pagination_state_and_restart(self) -> None:
+        with TemporaryDirectory() as directory:
+            provider, manager, catalogue_path, draft_path = self._manager(directory)
+            absent_list = manager.list_records(view="draft")
+            absent_get = manager.get_record("classic_fm", view="draft")
+            self.assertEqual(absent_list["error"]["refinement"], "draft_not_found")
+            self.assertEqual(absent_get["error"]["refinement"], "draft_not_found")
+            self.assertEqual(absent_list["view"], "draft")
+            self.assertIsNone(absent_list["draft_revision"])
+
+            created = manager.mutate(
+                "create", provider.active.active_revision, "evening", self._routine()
+            )
+            self.assertFalse(manager.get_record("evening")["ok"])
+            draft_get = manager.get_record("  EVENING ", view="draft")
+            self.assertTrue(draft_get["ok"])
+            self.assertEqual(draft_get["source_revision"], created["draft_revision"])
+            self.assertEqual(draft_get["active_revision"], provider.active.active_revision)
+            draft_get["record"]["title"] = "detached"
+            self.assertEqual(
+                manager.get_record("evening", view="draft")["record"]["title"],
+                "Evening",
+            )
+
+            entry = integration.ConfigEntry()
+            hass = FakeHass([entry])
+
+            async def read_through_services():
+                await integration.async_setup(hass, {})
+                hass.data[const.DOMAIN][entry.entry_id] = provider
+                listed = await hass.services.handler(
+                    const.DOMAIN, const.SERVICE_LIST_INTENT_RECORDS
+                )(integration.ServiceCall({"view": "draft", "limit": 20}))
+                found = await hass.services.handler(
+                    const.DOMAIN, const.SERVICE_GET_INTENT_RECORD
+                )(integration.ServiceCall({"view": "draft", "intent_id": "evening"}))
+                return listed, found
+
+            service_list, service_get = asyncio.run(read_through_services())
+            self.assertEqual(service_list["view"], "draft")
+            self.assertEqual(service_get["record"]["title"], "Evening")
+
+            updated = manager.mutate(
+                "update",
+                created["draft_revision"],
+                "evening",
+                self._routine("Updated evening"),
+            )
+            restarted_provider = catalogue.CatalogueProvider()
+            restarted_provider.publish(catalogue.load_registry(catalogue_path))
+            restarted = administration.AdministrationManager(
+                restarted_provider, catalogue_path, draft_path
+            )
+            self.assertEqual(
+                restarted.get_record("evening", view="draft")["record"]["title"],
+                "Updated evening",
+            )
+
+            first_page = restarted.list_records(2, view="draft")
+            self.assertEqual(first_page["view"], "draft")
+            self.assertEqual(first_page["source_revision"], updated["draft_revision"])
+            self.assertIsNotNone(first_page["next_cursor"])
+            second_page = restarted.list_records(
+                2, first_page["next_cursor"], view="draft"
+            )
+            self.assertGreater(
+                second_page["records"][0]["intent_id"],
+                first_page["records"][-1]["intent_id"],
+            )
+            wrong_draft_cursor = restarted.list_records(
+                2, restarted.list_records(2)["next_cursor"], view="draft"
+            )
+            self.assertEqual(
+                wrong_draft_cursor["error"]["refinement"], "invalid_cursor"
+            )
+            wrong_active_cursor = restarted.list_records(
+                2, first_page["next_cursor"], view="active"
+            )
+            self.assertEqual(
+                wrong_active_cursor["error"]["refinement"], "invalid_cursor"
+            )
+            malformed = restarted.list_records(2, "not-base64", view="draft")
+            self.assertEqual(malformed["error"]["refinement"], "invalid_cursor")
+            json.dumps(first_page)
+
+            changed = restarted.mutate(
+                "update",
+                updated["draft_revision"],
+                "classic_fm",
+                self._media(title="Changed classic"),
+            )
+            stale = restarted.list_records(2, first_page["next_cursor"], view="draft")
+            self.assertEqual(stale["error"]["refinement"], "stale_cursor")
+            self.assertEqual(stale["draft_revision"], changed["draft_revision"])
+            self.assertEqual(
+                restarted.get_record("classic_fm")["record"]["title"],
+                "Play Classic FM",
+            )
+            self.assertEqual(
+                restarted.get_record("classic_fm", view="draft")["record"]["title"],
+                "Changed classic",
+            )
+
+            deleted = restarted.mutate(
+                "delete", changed["draft_revision"], "classic_fm"
+            )
+            self.assertTrue(restarted.get_record("classic_fm")["ok"])
+            deleted_get = restarted.get_record("classic_fm", view="draft")
+            self.assertEqual(deleted_get["error"]["refinement"], "intent_not_found")
+            self.assertEqual(deleted_get["normalized_intent_id"], "classic_fm")
+
+    def test_draft_invalid_and_unavailable_read_outcomes(self) -> None:
+        with TemporaryDirectory() as directory:
+            _, manager, _, draft_path = self._manager(directory)
+            draft_path.write_text("records: [torn", encoding="utf-8")
+            invalid = manager.list_records(view="draft")
+            self.assertEqual(
+                invalid["error"]["refinement"], "draft_state_invalid"
+            )
+            self.assertTrue(invalid["draft_revision"].startswith("sha256-bytes:"))
+
+            unavailable_observation = administration.StoredObservation("unavailable")
+            with patch.object(
+                administration, "_observe", return_value=unavailable_observation
+            ):
+                unavailable = manager.get_record("classic_fm", view="draft")
+            self.assertEqual(
+                unavailable["error"]["refinement"], "draft_state_unavailable"
+            )
+            self.assertIsNone(unavailable["draft_revision"])
 
     def test_side_effect_free_record_and_complete_candidate_validation(self) -> None:
         with TemporaryDirectory() as directory:
@@ -680,6 +934,10 @@ class AdministrationContractTests(unittest.TestCase):
             discard = restarted.discard(delete["draft_revision"])
             self.assertTrue(discard["ok"])
             self.assertFalse(draft_path.exists())
+            self.assertEqual(
+                restarted.list_records(view="draft")["error"]["refinement"],
+                "draft_not_found",
+            )
             self.assertEqual(restarted_provider.active.active_revision, active.active_revision)
 
     def test_invalid_yaml_draft_is_reported_and_guardedly_discarded(self) -> None:
@@ -776,6 +1034,15 @@ class AdministrationContractTests(unittest.TestCase):
         self.assertIn(
             (const.DOMAIN, "activate_intent_catalogue"), hass.services.registrations
         )
+        for service in (
+            const.SERVICE_LIST_INTENT_RECORDS,
+            const.SERVICE_GET_INTENT_RECORD,
+        ):
+            registered = hass.services.registrations[(const.DOMAIN, service)]
+            self.assertNotIn("admin_only", registered[3])
+            self.assertEqual(
+                registered[3]["supports_response"], integration.SupportsResponse.ONLY
+            )
         handler = registration[2]
         hass.users["ordinary"] = SimpleNamespace(is_admin=False)
         with self.assertRaises(sys.modules["homeassistant.exceptions"].Unauthorized):
@@ -889,6 +1156,12 @@ class AdministrationContractTests(unittest.TestCase):
             self.assertEqual(len(probes), 7)
             self.assertEqual(len({tuple(sorted(probe.items())) for probe in probes}), 7)
             self.assertFalse(draft_path.exists())
+            self.assertEqual(
+                manager.get_record("classic_fm_alias", view="draft")["error"][
+                    "refinement"
+                ],
+                "draft_not_found",
+            )
             self.assertEqual(catalogue.load_registry(catalogue_path).active_revision,
                              response["active_revision"])
             status = manager.status()
@@ -1277,7 +1550,7 @@ class PackagingAndAdapterTests(unittest.TestCase):
         manifest = json.loads((INTEGRATION / "manifest.json").read_text())
         hacs = json.loads((ROOT / "hacs.json").read_text())
         self.assertEqual(manifest["domain"], const.DOMAIN)
-        self.assertEqual(manifest["version"], "0.3.0")
+        self.assertEqual(manifest["version"], "0.4.0")
         self.assertTrue(manifest["config_flow"])
         self.assertTrue(manifest["single_config_entry"])
         self.assertEqual(hacs, {"name": "ASTV Intent Catalogue"})

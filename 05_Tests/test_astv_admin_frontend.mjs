@@ -5,6 +5,7 @@ globalThis.HTMLElement = class {};
 
 const {
   ASTVAdapterError,
+  ASTVIntentCataloguePanel,
   ASTVProviderAdapter,
   blankIntentRecord,
   filterAndSortIntents,
@@ -191,4 +192,65 @@ test("intent list searches ID and Name, filters supported type, and sorts", () =
   assert.deepEqual(filterAndSortIntents(entries, { search: "classic" }).map((entry) => entry.intentId), ["z_radio"]);
   assert.deepEqual(filterAndSortIntents(entries, { type: "routine.run" }).map((entry) => entry.intentId), ["alarm"]);
   assert.deepEqual(filterAndSortIntents(entries, { sort: "name-desc" }).map((entry) => entry.intentId), ["alarm", "z_radio"]);
+});
+
+test("Home Assistant state updates preserve the mounted panel DOM", () => {
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  let rendered = 0;
+  let observedHass;
+  panel.initialized = true;
+  panel.adapter = { setHass(value) { observedHass = value; } };
+  panel.render = () => { rendered += 1; };
+  const nextHass = { user: { is_admin: true }, states: { changed: {} } };
+
+  panel.hass = nextHass;
+
+  assert.equal(panel._hass, nextHass);
+  assert.equal(observedHass, nextHass);
+  assert.equal(rendered, 0);
+});
+
+test("search input updates list rows in place without replacing the focused control", () => {
+  const listeners = {};
+  const search = { value: "", addEventListener(type, listener) { listeners[type] = listener; } };
+  const table = { innerHTML: "" };
+  const resultCount = { textContent: "" };
+  const wrap = { scrollTop: 19 };
+  const root = {
+    querySelector(selector) {
+      return {
+        "[data-action=add]": null,
+        "[name=search]": search,
+        "[name=type]": null,
+        "[name=sort]": null,
+        ".intent-table": table,
+        ".result-count": resultCount,
+        ".table-wrap": wrap,
+      }[selector];
+    },
+    querySelectorAll() { return []; },
+  };
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    shadowRoot: root,
+    screen: "list",
+    filters: { search: "", type: "all", sort: "id-asc" },
+    records: [
+      { intentId: "classic_fm", record: { intent: "media.play_source", title: "Classic FM" } },
+      { intentId: "morning", record: { intent: "routine.run", title: "Morning" } },
+    ],
+    tagCounts: new Map(),
+    listScrollTop: 19,
+    render() { throw new Error("search must not perform a full render"); },
+  });
+
+  panel.bindListEvents();
+  listeners.input({ target: { value: "classic" } });
+
+  assert.equal(root.querySelector("[name=search]"), search);
+  assert.equal(panel.filters.search, "classic");
+  assert.equal(resultCount.textContent, "1 of 2 intents");
+  assert.match(table.innerHTML, /classic_fm/);
+  assert.doesNotMatch(table.innerHTML, /morning/);
+  assert.equal(wrap.scrollTop, 0);
 });

@@ -36,6 +36,10 @@ or Status workspaces.
   fresh provider reads before another user action.
 - Read-only presentation for non-admin users; the provider remains the manage
   authorization boundary.
+- DOM and focus continuity across Home Assistant `hass` state updates: the
+  adapter reference is refreshed without remounting the established panel.
+- Search, filter, sort and asynchronous tag-count changes update the result
+  count and table rows in place without replacing the focused search control.
 
 Tag counts are read-only and failure-isolated. Tag association creation,
 editing, removal, delete blocking, deep links, the Status tab and activation
@@ -54,7 +58,10 @@ The Node suite covers the authenticated response-only WebSocket envelope,
 transport errors, bounded timeout, non-admin manage suppression, stale-write
 reconciliation without retry, capability-gated draft reads, optional AdvNFC
 isolation, provider pagination, schema-v1 client validation, absence of a
-Description field, search, filtering and sorting.
+Description field, search, filtering and sorting. Focused rework regressions
+also prove that repeated Home Assistant state assignments do not invoke a full
+render and that a search input event updates list rows in place while retaining
+the mounted input element.
 
 Repository Python regressions remain applicable. In the current local sandbox,
 the standalone registry proof passed. The full Python suite requires a writable

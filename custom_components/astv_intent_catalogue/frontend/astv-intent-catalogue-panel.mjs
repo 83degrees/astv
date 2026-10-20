@@ -161,7 +161,11 @@ export class ASTVIntentCataloguePanel extends HTMLElement {
     this.editing = null; this.original = null; this.editorErrors = {}; this.notice = null;
     this.beforeUnload = (event) => { if (this.isDirty()) { event.preventDefault(); event.returnValue = ""; } };
   }
-  set hass(value) { this._hass = value; if (!this.adapter) this.adapter = new ASTVProviderAdapter(value); else this.adapter.setHass(value); if (!this.initialized) void this.initialize(); else this.render(); }
+  set hass(value) {
+    this._hass = value;
+    if (!this.adapter) this.adapter = new ASTVProviderAdapter(value); else this.adapter.setHass(value);
+    if (!this.initialized) void this.initialize();
+  }
   set panel(value) { this._panel = value; }
   connectedCallback() { globalThis.addEventListener?.("beforeunload", this.beforeUnload); }
   disconnectedCallback() { globalThis.removeEventListener?.("beforeunload", this.beforeUnload); }
@@ -193,7 +197,7 @@ export class ASTVIntentCataloguePanel extends HTMLElement {
       try { const result = await this.adapter.queryAdvNfc(intentId); this.tagCounts.set(intentId, result.available ? result.mappings.length : null); }
       catch { this.tagCounts.set(intentId, null); }
     }));
-    if (this.screen === "list") this.render();
+    if (this.screen === "list") this.updateListResults();
   }
   isDirty() { return this.screen === "editor" && JSON.stringify(this.editing) !== JSON.stringify(this.original); }
   canEditCurrentView() { return this.adapter.canManage && (this.view === "draft" || this.status?.draft_state !== "valid"); }
@@ -246,14 +250,22 @@ export class ASTVIntentCataloguePanel extends HTMLElement {
     } finally { this.busy = false; this.render(); }
   }
 
-  bindListEvents() {
+  bindRowEvents() {
     const root = this.shadowRoot;
-    root.querySelector("[data-action=add]")?.addEventListener("click", () => this.openEditor());
     root.querySelectorAll("[data-intent-id]").forEach((row) => {
       const open = () => this.openEditor(this.records.find((entry) => entry.intentId === row.dataset.intentId)); row.addEventListener("click", open);
       row.addEventListener("keydown", (event) => { if (event.key === "Enter" || event.key === " ") open(); });
     });
-    for (const field of ["search", "type", "sort"]) root.querySelector(`[name=${field}]`)?.addEventListener(field === "search" ? "input" : "change", (event) => { this.filters[field] = event.target.value; this.listScrollTop = field === "search" ? 0 : root.querySelector(".table-wrap")?.scrollTop ?? 0; this.render(); });
+  }
+  bindListEvents() {
+    const root = this.shadowRoot;
+    root.querySelector("[data-action=add]")?.addEventListener("click", () => this.openEditor());
+    this.bindRowEvents();
+    for (const field of ["search", "type", "sort"]) root.querySelector(`[name=${field}]`)?.addEventListener(field === "search" ? "input" : "change", (event) => {
+      this.filters[field] = event.target.value;
+      this.listScrollTop = field === "search" ? 0 : root.querySelector(".table-wrap")?.scrollTop ?? 0;
+      this.updateListResults();
+    });
     root.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => { if (button.dataset.view !== this.view && !this.busy) void this.loadRecords(button.dataset.view); }));
     const wrap = root.querySelector(".table-wrap"); if (wrap) wrap.scrollTop = this.listScrollTop;
   }
@@ -266,12 +278,27 @@ export class ASTVIntentCataloguePanel extends HTMLElement {
     form?.querySelector("[name=intent]")?.addEventListener("change", () => { this.updateEditorFromForm(form); this.editing.record = { ...blankIntentRecord(this.editing.record.intent), title: this.editing.record.title, ...(this.editing.record.area_override ? { area_override: this.editing.record.area_override } : {}) }; this.render(); });
   }
   renderNotice() { return this.notice ? `<div class="notice ${escapeHtml(this.notice.kind)}" role="status">${escapeHtml(this.notice.text)}</div>` : ""; }
-  renderList() {
-    const visible = filterAndSortIntents(this.records, this.filters); const canDraft = this.adapter.capabilities?.capabilities?.includes("draft.list"); const draftAvailable = this.status?.draft_state === "valid";
-    const rows = visible.map(({ intentId, record }) => {
+  visibleRecords() { return filterAndSortIntents(this.records, this.filters); }
+  renderIntentRows(visible = this.visibleRecords()) {
+    return visible.map(({ intentId, record }) => {
       const count = this.tagCounts.has(intentId) ? this.tagCounts.get(intentId) : undefined; const tags = count === undefined ? "…" : count === null ? "Unavailable" : String(count);
       return `<div class="intent-row" role="row" tabindex="0" data-intent-id="${escapeHtml(intentId)}"><div role="cell"><strong>${escapeHtml(record.title)}</strong><small>${escapeHtml(intentId)}</small></div><div role="cell"><span class="type">${escapeHtml(record.intent)}</span></div><div role="cell" class="tags" aria-label="${escapeHtml(tags)} associated tags">${escapeHtml(tags)}</div><div class="chevron">›</div></div>`;
     }).join("") || `<p class="empty">No intents match the current search and filter.</p>`;
+  }
+  updateListResults() {
+    if (this.screen !== "list" || !this.shadowRoot) return;
+    const visible = this.visibleRecords(); const table = this.shadowRoot.querySelector(".intent-table");
+    const resultCount = this.shadowRoot.querySelector(".result-count"); const wrap = this.shadowRoot.querySelector(".table-wrap");
+    if (resultCount) resultCount.textContent = `${visible.length} of ${this.records.length} intents`;
+    if (table) {
+      table.innerHTML = `<div class="intent-head" role="row"><div>Name / ID</div><div>Type</div><div>Tags</div><div></div></div>${this.renderIntentRows(visible)}`;
+      this.bindRowEvents();
+    }
+    if (wrap) wrap.scrollTop = this.listScrollTop;
+  }
+  renderList() {
+    const visible = this.visibleRecords(); const canDraft = this.adapter.capabilities?.capabilities?.includes("draft.list"); const draftAvailable = this.status?.draft_state === "valid";
+    const rows = this.renderIntentRows(visible);
     return `<main><header><div><h1>Intent Catalogue</h1><p class="permission">${this.adapter.canManage ? "Administrator · edits are staged" : "Read only"}</p></div>${this.canEditCurrentView() ? `<button class="primary" data-action="add">Add intent</button>` : ""}</header>${this.renderNotice()}
       <section class="state-bar"><div class="view-switch"><button data-view="active" class="${this.view === "active" ? "selected" : ""}">Active</button><button data-view="draft" class="${this.view === "draft" ? "selected" : ""}" ${!canDraft || !draftAvailable ? "disabled" : ""}>Shared draft</button></div><span>${this.view === "draft" ? "Viewing staged changes; runtime remains active." : draftAvailable ? "A shared draft exists." : "No staged draft."}</span></section>
       <section class="toolbar"><label class="search"><span>Search</span><input name="search" type="search" value="${escapeHtml(this.filters.search)}" placeholder="ID or Name"></label><label><span>Type</span><select name="type"><option value="all" ${this.filters.type === "all" ? "selected" : ""}>All types</option><option value="media.play_source" ${this.filters.type === "media.play_source" ? "selected" : ""}>Play source</option><option value="routine.run" ${this.filters.type === "routine.run" ? "selected" : ""}>Run routine</option></select></label><label><span>Sort</span><select name="sort"><option value="id-asc" ${this.filters.sort === "id-asc" ? "selected" : ""}>ID A–Z</option><option value="id-desc" ${this.filters.sort === "id-desc" ? "selected" : ""}>ID Z–A</option><option value="name-asc" ${this.filters.sort === "name-asc" ? "selected" : ""}>Name A–Z</option><option value="name-desc" ${this.filters.sort === "name-desc" ? "selected" : ""}>Name Z–A</option></select></label></section>

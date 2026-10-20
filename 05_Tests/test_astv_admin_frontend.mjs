@@ -6,6 +6,9 @@ globalThis.HTMLElement = class {};
 const {
   ASTVAdapterError,
   ASTVProviderAdapter,
+  blankIntentRecord,
+  filterAndSortIntents,
+  validateIntentEntry,
 } = await import("../custom_components/astv_intent_catalogue/frontend/astv-intent-catalogue-panel.mjs");
 
 function hassWith(handler, isAdmin = false) {
@@ -146,4 +149,46 @@ test("optional AdvNFC absence is isolated from ASTV editing", async () => {
     mappings: [],
     reason: "provider_unavailable",
   });
+});
+
+test("listAll follows provider pagination without mixing revisions", async () => {
+  const cursors = [];
+  const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
+    if (message.service === "get_administration_capabilities") {
+      return { context: {}, response: { ok: true, interface_id: "astv.intent_catalogue.administration", interface_version: "1.1.0", capabilities: ["active.list"] } };
+    }
+    cursors.push(message.service_data.cursor ?? null);
+    const second = message.service_data.cursor === "page-2";
+    return { context: {}, response: { ok: true, active_revision: "rev-a", records: [{ intent_id: second ? "two" : "one", record: blankIntentRecord("routine.run") }], next_cursor: second ? null : "page-2" } };
+  }));
+
+  const result = await adapter.listAll("active");
+  assert.deepEqual(cursors, [null, "page-2"]);
+  assert.deepEqual(result.records.map((entry) => entry.intent_id), ["one", "two"]);
+});
+
+test("client validation preserves schema v1 shapes and rejects non-canonical fields", () => {
+  const media = blankIntentRecord();
+  media.title = "Classic FM";
+  media.params.output.domain = "audio";
+  media.params.catalogue_id = "curated_media";
+  media.params.item_id = "classic-fm";
+  assert.deepEqual(validateIntentEntry({ intentId: "classic_fm", record: media }), {});
+  assert.equal(Object.hasOwn(media, "description"), false);
+
+  const routine = blankIntentRecord("routine.run");
+  routine.title = "Morning";
+  routine.routine = "Morning Routine";
+  assert.equal(validateIntentEntry({ intentId: "Morning", record: routine }).intentId.length > 0, true);
+  assert.equal(validateIntentEntry({ intentId: "morning", record: routine }).routine.length > 0, true);
+});
+
+test("intent list searches ID and Name, filters supported type, and sorts", () => {
+  const entries = [
+    { intentId: "z_radio", record: { intent: "media.play_source", title: "Classic FM" } },
+    { intentId: "alarm", record: { intent: "routine.run", title: "Morning routine" } },
+  ];
+  assert.deepEqual(filterAndSortIntents(entries, { search: "classic" }).map((entry) => entry.intentId), ["z_radio"]);
+  assert.deepEqual(filterAndSortIntents(entries, { type: "routine.run" }).map((entry) => entry.intentId), ["alarm"]);
+  assert.deepEqual(filterAndSortIntents(entries, { sort: "name-desc" }).map((entry) => entry.intentId), ["alarm", "z_radio"]);
 });

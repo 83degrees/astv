@@ -371,6 +371,158 @@ test("non-admin Status tab exposes state without an activation control", () => {
   assert.doesNotMatch(html, /data-action="activate"/);
 });
 
+test("activation handler refuses non-admin, absent, invalid, or unchanged drafts", async () => {
+  for (const candidate of [
+    { canManage: false, status: { draft_state: "valid", activation_required: true } },
+    { canManage: true, status: { draft_state: "absent", activation_required: false } },
+    { canManage: true, status: { draft_state: "invalid", activation_required: true } },
+    { canManage: true, status: { draft_state: "valid", activation_required: false } },
+  ]) {
+    let activations = 0;
+    const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+    Object.assign(panel, {
+      adapter: { canManage: candidate.canManage, async activate() { activations += 1; } },
+      status: candidate.status,
+    });
+
+    await panel.activateDraft();
+
+    assert.equal(activations, 0);
+  }
+});
+
+test("activation confirmation cancellation is mutation-free", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => false;
+  let activations = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: { canManage: true, async activate() { activations += 1; } },
+    status: { draft_state: "valid", activation_required: true },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 0);
+});
+
+test("explicit activation performs exactly one revision-guarded provider operation", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  const calls = [];
+  let statusReads = 0;
+  const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
+    calls.push(message);
+    let response;
+    if (message.service === "get_administration_capabilities") {
+      response = {
+        ok: true,
+        interface_id: "astv.intent_catalogue.administration",
+        interface_version: "1.1.0",
+        capabilities: ["activation.explicit"],
+      };
+    } else if (message.service === "get_administration_status") {
+      statusReads += 1;
+      response = {
+        ok: true,
+        draft_state: statusReads === 1 ? "valid" : "absent",
+        activation_required: statusReads === 1,
+        editable_revision: statusReads === 1 ? "rev-draft" : "rev-active",
+      };
+    } else {
+      response = { ok: true, operation: "activate", active_revision: "rev-active", draft_revision: null };
+    }
+    return { context: {}, response };
+  }, true));
+  const loadedViews = [];
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter,
+    status: { draft_state: "valid", activation_required: true },
+    busy: false,
+    render() {},
+    async loadRecords(view) { loadedViews.push(view); },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  const activationCalls = calls.filter((call) => call.service === "activate_intent_catalogue");
+  assert.equal(activationCalls.length, 1);
+  assert.equal(activationCalls[0].service_data.expected_revision, "rev-draft");
+  assert.deepEqual(loadedViews, ["active"]);
+  assert.equal(panel.notice.kind, "success");
+});
+
+test("stale activation conflict is surfaced without retry or false success", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  let activations = 0;
+  let activeLoads = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async activate() {
+        activations += 1;
+        return { conflict: true, refreshed_status: { draft_state: "valid", activation_required: true, editable_revision: "rev-new" } };
+      },
+    },
+    status: { draft_state: "valid", activation_required: true, editable_revision: "rev-old" },
+    busy: false,
+    render() {},
+    async loadRecords() { activeLoads += 1; },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 1);
+  assert.equal(activeLoads, 0);
+  assert.equal(panel.status.editable_revision, "rev-new");
+  assert.equal(panel.notice.kind, "warning");
+  assert.doesNotMatch(panel.notice.text, /success/i);
+});
+
+test("activation timeout remains indeterminate and reconciles status plus selected view", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  let activations = 0;
+  let statusReads = 0;
+  const loadedViews = [];
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async activate() { activations += 1; throw new ASTVAdapterError("timeout", "timeout", "Timed out calling activation."); },
+      async status() { statusReads += 1; return { ok: true, draft_state: "valid", activation_required: true, editable_revision: "rev-reconciled" }; },
+    },
+    status: { draft_state: "valid", activation_required: true, editable_revision: "rev-before" },
+    busy: false,
+    render() {},
+    async loadRecords(view) { loadedViews.push(view); },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 1);
+  assert.equal(statusReads, 1);
+  assert.deepEqual(loadedViews, ["draft"]);
+  assert.equal(panel.status.editable_revision, "rev-reconciled");
+  assert.equal(panel.notice.kind, "warning");
+  assert.match(panel.notice.text, /outcome is uncertain/i);
+});
+
 test("Home Assistant state updates preserve the mounted panel DOM", () => {
   const panel = Object.create(ASTVIntentCataloguePanel.prototype);
   let rendered = 0;

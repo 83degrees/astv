@@ -113,6 +113,7 @@ def _install_home_assistant_stubs() -> None:
     core = ModuleType("homeassistant.core")
     exceptions = ModuleType("homeassistant.exceptions")
     helpers = ModuleType("homeassistant.helpers")
+    config_validation = ModuleType("homeassistant.helpers.config_validation")
     service_helper = ModuleType("homeassistant.helpers.service")
     typing_module = ModuleType("homeassistant.helpers.typing")
 
@@ -196,6 +197,9 @@ def _install_home_assistant_stubs() -> None:
             admin_only=True,
         )
 
+    def config_entry_only_config_schema(domain):
+        return {"config_entry_only": domain}
+
     config_entries.ConfigEntry = ConfigEntry
     config_entries.ConfigEntryState = ConfigEntryState
     config_entries.ConfigFlow = ConfigFlow
@@ -223,7 +227,9 @@ def _install_home_assistant_stubs() -> None:
     homeassistant.exceptions = exceptions
     homeassistant.helpers = helpers
     helpers.typing = typing_module
+    helpers.config_validation = config_validation
     helpers.service = service_helper
+    config_validation.config_entry_only_config_schema = config_entry_only_config_schema
     sys.modules["homeassistant"] = homeassistant
     sys.modules["homeassistant.config_entries"] = config_entries
     sys.modules["homeassistant.components"] = components
@@ -233,6 +239,7 @@ def _install_home_assistant_stubs() -> None:
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
+    sys.modules["homeassistant.helpers.config_validation"] = config_validation
     sys.modules["homeassistant.helpers.service"] = service_helper
     sys.modules["homeassistant.helpers.typing"] = typing_module
 
@@ -1588,6 +1595,7 @@ class PackagingAndAdapterTests(unittest.TestCase):
         self.assertEqual(manifest["dependencies"], ["frontend", "http", "panel_custom"])
         self.assertTrue(manifest["config_flow"])
         self.assertTrue(manifest["single_config_entry"])
+        self.assertEqual(integration.CONFIG_SCHEMA, {"config_entry_only": const.DOMAIN})
         self.assertEqual(hacs, {"name": "ASTV Intent Catalogue"})
         self.assertTrue((INTEGRATION / "brand" / "icon.png").is_file())
 

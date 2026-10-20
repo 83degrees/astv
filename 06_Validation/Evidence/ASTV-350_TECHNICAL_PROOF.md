@@ -53,6 +53,15 @@ The module content digest changes its registered URL after an update and
 restart. Removal cleanup likewise completes through HACS removal and restart,
 not config-entry unload.
 
+## Hassfest rework
+
+The first review candidate exposed two Hassfest findings. The manifest keys are
+now ordered with `domain` and `name` first and all remaining keys alphabetical.
+The `CONFIG_SCHEMA` warning was also applicable: this integration implements
+`async_setup` while remaining config-entry-only. It now declares
+`cv.config_entry_only_config_schema(DOMAIN)`, explicitly rejecting YAML
+configuration without changing its UI/config-entry setup path.
+
 ## Reproduction
 
 From the repository root:

@@ -105,6 +105,10 @@ def _install_home_assistant_stubs() -> None:
     sys.modules["voluptuous"] = vol
 
     homeassistant = ModuleType("homeassistant")
+    components = ModuleType("homeassistant.components")
+    frontend = ModuleType("homeassistant.components.frontend")
+    http = ModuleType("homeassistant.components.http")
+    panel_custom = ModuleType("homeassistant.components.panel_custom")
     config_entries = ModuleType("homeassistant.config_entries")
     core = ModuleType("homeassistant.core")
     exceptions = ModuleType("homeassistant.exceptions")
@@ -161,6 +165,18 @@ def _install_home_assistant_stubs() -> None:
     class Unauthorized(RuntimeError):
         pass
 
+    class StaticPathConfig:
+        def __init__(self, url_path, path, cache_headers=True):
+            self.url_path = url_path
+            self.path = path
+            self.cache_headers = cache_headers
+
+    def async_panel_exists(hass, url_path):
+        return url_path in hass.panels
+
+    async def async_register_panel(hass, **kwargs):
+        hass.panels[kwargs["frontend_url_path"]] = kwargs
+
     def async_register_admin_service(
         hass, domain, service, handler, schema=None, supports_response=None
     ):
@@ -194,8 +210,15 @@ def _install_home_assistant_stubs() -> None:
     exceptions.Unauthorized = Unauthorized
     service_helper.async_register_admin_service = async_register_admin_service
     typing_module.ConfigType = dict
+    frontend.async_panel_exists = async_panel_exists
+    http.StaticPathConfig = StaticPathConfig
+    panel_custom.async_register_panel = async_register_panel
 
     homeassistant.config_entries = config_entries
+    homeassistant.components = components
+    components.frontend = frontend
+    components.http = http
+    components.panel_custom = panel_custom
     homeassistant.core = core
     homeassistant.exceptions = exceptions
     homeassistant.helpers = helpers
@@ -203,6 +226,10 @@ def _install_home_assistant_stubs() -> None:
     helpers.service = service_helper
     sys.modules["homeassistant"] = homeassistant
     sys.modules["homeassistant.config_entries"] = config_entries
+    sys.modules["homeassistant.components"] = components
+    sys.modules["homeassistant.components.frontend"] = frontend
+    sys.modules["homeassistant.components.http"] = http
+    sys.modules["homeassistant.components.panel_custom"] = panel_custom
     sys.modules["homeassistant.core"] = core
     sys.modules["homeassistant.exceptions"] = exceptions
     sys.modules["homeassistant.helpers"] = helpers
@@ -265,12 +292,19 @@ class FakeHass:
         self.config_entries = FakeConfigEntries(entries)
         self.auth = SimpleNamespace(async_get_user=self._async_get_user)
         self.users = {}
+        self.panels = {}
+        self.http = SimpleNamespace(
+            paths=[], async_register_static_paths=self._async_register_static_paths
+        )
 
     async def _async_get_user(self, user_id):
         return self.users.get(user_id)
 
     async def async_add_executor_job(self, target, *args):
         return target(*args)
+
+    async def _async_register_static_paths(self, paths):
+        self.http.paths.extend(paths)
 
 
 def _load(path: Path):
@@ -1550,11 +1584,35 @@ class PackagingAndAdapterTests(unittest.TestCase):
         manifest = json.loads((INTEGRATION / "manifest.json").read_text())
         hacs = json.loads((ROOT / "hacs.json").read_text())
         self.assertEqual(manifest["domain"], const.DOMAIN)
-        self.assertEqual(manifest["version"], "0.4.0")
+        self.assertEqual(manifest["version"], "0.5.0")
+        self.assertEqual(manifest["dependencies"], ["frontend", "http", "panel_custom"])
         self.assertTrue(manifest["config_flow"])
         self.assertTrue(manifest["single_config_entry"])
         self.assertEqual(hacs, {"name": "ASTV Intent Catalogue"})
         self.assertTrue((INTEGRATION / "brand" / "icon.png").is_file())
+
+    def test_panel_registration_uses_bundled_hashed_module_and_read_visibility(self) -> None:
+        hass = FakeHass()
+        asyncio.run(integration.async_setup(hass, {}))
+
+        self.assertEqual(len(hass.http.paths), 1)
+        static_path = hass.http.paths[0]
+        self.assertEqual(static_path.url_path, const.PANEL_STATIC_URL)
+        self.assertTrue(static_path.cache_headers)
+        self.assertEqual(Path(static_path.path), INTEGRATION / "frontend")
+
+        panel = hass.panels[const.PANEL_URL_PATH]
+        self.assertEqual(panel["webcomponent_name"], const.PANEL_WEB_COMPONENT)
+        self.assertFalse(panel["embed_iframe"])
+        self.assertFalse(panel["require_admin"])
+        self.assertTrue(panel["handle_safe_area"])
+        self.assertRegex(
+            panel["module_url"],
+            rf"^{const.PANEL_STATIC_URL}/{const.PANEL_MODULE}\?v=[0-9a-f]{{16}}$",
+        )
+        self.assertEqual(
+            panel["config"], {"interface_version": const.ADMIN_INTERFACE_VERSION}
+        )
 
     def test_script_adapter_only_changes_lookup_boundary(self) -> None:
         scripts_path = (

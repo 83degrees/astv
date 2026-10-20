@@ -38,6 +38,7 @@ from .const import (
     SERVICE_VALIDATE_INTENT_CATALOGUE,
     SERVICE_VALIDATE_INTENT_RECORD,
 )
+from .panel import async_register_frontend
 
 
 def _lookup_value(value: Any) -> str | int | float | bool:
@@ -315,6 +316,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             schema=schema,
             supports_response=SupportsResponse.ONLY,
         )
+    await async_register_frontend(hass)
     return True
 
 

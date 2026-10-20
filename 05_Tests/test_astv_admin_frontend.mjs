@@ -147,9 +147,63 @@ test("optional AdvNFC absence is isolated from ASTV editing", async () => {
   }));
   assert.deepEqual(await adapter.queryAdvNfc("classic_fm"), {
     available: false,
+    state: "unavailable",
     mappings: [],
     reason: "provider_unavailable",
   });
+});
+
+test("AdvNFC reverse lookup negotiates v3 query capability and normalizes populated results", async () => {
+  const calls = [];
+  const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
+    calls.push(message);
+    const response = message.service === "get_administration_capabilities"
+      ? { ok: true, interface_id: "advnfc.tag_mapping.administration", interface_version: "3.0.0", operations: ["query"] }
+      : { ok: true, mappings: [{ uid: "04A1", label: "Kitchen", action: { type: "astv_intent", intent_id: "classic_fm" } }] };
+    return { context: {}, response };
+  }));
+
+  const result = await adapter.queryAdvNfc("classic_fm");
+
+  assert.equal(result.state, "populated");
+  assert.equal(result.available, true);
+  assert.equal(result.mappings[0].uid, "04A1");
+  assert.deepEqual(calls.map((call) => call.service), ["get_administration_capabilities", "query_tag_mappings"]);
+  assert.deepEqual(calls[1].service_data, { action_type: "astv_intent", intent_id: "classic_fm" });
+});
+
+test("AdvNFC incompatibility is isolated and does not probe the query operation", async () => {
+  const calls = [];
+  const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
+    calls.push(message);
+    return { context: {}, response: { ok: true, interface_id: "advnfc.tag_mapping.administration", interface_version: "2", operations: ["query"] } };
+  }));
+
+  const result = await adapter.queryAdvNfc("classic_fm");
+
+  assert.equal(result.state, "incompatible");
+  assert.equal(result.available, false);
+  assert.deepEqual(calls.map((call) => call.service), ["get_administration_capabilities"]);
+});
+
+test("AdvNFC authorization and query errors remain distinguishable", async () => {
+  const unauthorized = new ASTVProviderAdapter(hassWith(async () => {
+    throw { code: "unauthorized", message: "Unauthorized" };
+  }));
+  assert.equal((await unauthorized.queryAdvNfc("classic_fm")).state, "unauthorized");
+
+  const failed = new ASTVProviderAdapter(hassWith(async (message) => ({
+    context: {},
+    response: message.service === "get_administration_capabilities"
+      ? { ok: true, interface_id: "advnfc.tag_mapping.administration", interface_version: 3, operations: ["query"] }
+      : { ok: false, error: { code: "provider_failed", message: "Query failed" } },
+  })));
+  assert.equal((await failed.queryAdvNfc("classic_fm")).state, "error");
+
+  const unavailable = new ASTVProviderAdapter(hassWith(async () => ({
+    context: {}, response: { ok: false, error: { code: "dependency_unavailable", message: "Provider unavailable" } },
+  })));
+  assert.equal((await unavailable.queryAdvNfc("classic_fm")).state, "unavailable");
 });
 
 test("listAll follows provider pagination without mixing revisions", async () => {
@@ -192,6 +246,281 @@ test("intent list searches ID and Name, filters supported type, and sorts", () =
   assert.deepEqual(filterAndSortIntents(entries, { search: "classic" }).map((entry) => entry.intentId), ["z_radio"]);
   assert.deepEqual(filterAndSortIntents(entries, { type: "routine.run" }).map((entry) => entry.intentId), ["alarm"]);
   assert.deepEqual(filterAndSortIntents(entries, { sort: "name-desc" }).map((entry) => entry.intentId), ["alarm", "z_radio"]);
+});
+
+test("known AdvNFC references block ASTV deletion before mutation", async () => {
+  let mutated = false;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async queryAdvNfc() { return { available: true, state: "populated", mappings: [{ uid: "04A1", label: "Kitchen" }] }; },
+      async guardedMutation() { mutated = true; return { ok: true }; },
+    },
+    view: "draft",
+    status: { draft_state: "valid" },
+    original: { intentId: "classic_fm" },
+    associations: new Map(),
+    busy: false,
+    render() {},
+  });
+
+  await panel.deleteEditor();
+
+  assert.equal(mutated, false);
+  assert.equal(panel.notice.kind, "warning");
+  assert.match(panel.notice.text, /Kitchen \(04A1\)/);
+});
+
+test("unknown optional association state warns but does not hard-block confirmed deletion", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  let mutated = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async queryAdvNfc() { return { available: false, state: "unavailable", mappings: [] }; },
+      async guardedMutation() { mutated += 1; return { ok: true }; },
+      async status() { return { ok: true, draft_state: "valid" }; },
+    },
+    view: "draft",
+    status: { draft_state: "valid" },
+    original: { intentId: "classic_fm" },
+    associations: new Map(),
+    busy: false,
+    render() {},
+    async loadRecords() {},
+  });
+  try {
+    await panel.deleteEditor();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(mutated, 1);
+  assert.equal(panel.notice.kind, "success");
+});
+
+test("Status tab keeps Save and explicit activation semantically separate", () => {
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: { canManage: true },
+    section: "status",
+    busy: false,
+    notice: null,
+    status: {
+      provider_state: "available",
+      active_state: "available",
+      persisted_state: "valid",
+      draft_state: "valid",
+      active_revision: "rev-active",
+      persisted_revision: "rev-active",
+      draft_revision: "rev-draft",
+      editable_revision: "rev-draft",
+      activation_required: true,
+      schema_version: "1.0.0",
+      last_activation_error: null,
+    },
+  });
+
+  const html = panel.renderStatus();
+  assert.match(html, /Activate shared draft/);
+  assert.match(html, /Save stages changes only/);
+  assert.match(html, /rev-active/);
+  assert.match(html, /rev-draft/);
+});
+
+test("Tags tab renders safe provider identifiers and isolates unavailable associations", () => {
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: { canManage: false },
+    section: "tags",
+    busy: false,
+    notice: null,
+    records: [
+      { intentId: "classic_fm", record: { title: "Classic <FM>" } },
+      { intentId: "morning", record: { title: "Morning" } },
+    ],
+    associations: new Map([
+      ["classic_fm", { available: true, state: "populated", mappings: [{ uid: "04<A1", label: "Kitchen & hall" }] }],
+      ["morning", { available: false, state: "unavailable", mappings: [] }],
+    ]),
+  });
+
+  const html = panel.renderTags();
+  assert.match(html, /Classic &lt;FM&gt;/);
+  assert.match(html, /04&lt;A1/);
+  assert.match(html, /Kitchen &amp; hall/);
+  assert.match(html, /AdvNFC is unavailable/);
+  assert.doesNotMatch(html, /href=/);
+});
+
+test("non-admin Status tab exposes state without an activation control", () => {
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: { canManage: false },
+    section: "status",
+    busy: false,
+    notice: null,
+    status: { provider_state: "available", draft_state: "valid", activation_required: true },
+  });
+
+  const html = panel.renderStatus();
+  assert.match(html, /Read only/);
+  assert.doesNotMatch(html, /data-action="activate"/);
+});
+
+test("activation handler refuses non-admin, absent, invalid, or unchanged drafts", async () => {
+  for (const candidate of [
+    { canManage: false, status: { draft_state: "valid", activation_required: true } },
+    { canManage: true, status: { draft_state: "absent", activation_required: false } },
+    { canManage: true, status: { draft_state: "invalid", activation_required: true } },
+    { canManage: true, status: { draft_state: "valid", activation_required: false } },
+  ]) {
+    let activations = 0;
+    const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+    Object.assign(panel, {
+      adapter: { canManage: candidate.canManage, async activate() { activations += 1; } },
+      status: candidate.status,
+    });
+
+    await panel.activateDraft();
+
+    assert.equal(activations, 0);
+  }
+});
+
+test("activation confirmation cancellation is mutation-free", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => false;
+  let activations = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: { canManage: true, async activate() { activations += 1; } },
+    status: { draft_state: "valid", activation_required: true },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 0);
+});
+
+test("explicit activation performs exactly one revision-guarded provider operation", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  const calls = [];
+  let statusReads = 0;
+  const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
+    calls.push(message);
+    let response;
+    if (message.service === "get_administration_capabilities") {
+      response = {
+        ok: true,
+        interface_id: "astv.intent_catalogue.administration",
+        interface_version: "1.1.0",
+        capabilities: ["activation.explicit"],
+      };
+    } else if (message.service === "get_administration_status") {
+      statusReads += 1;
+      response = {
+        ok: true,
+        draft_state: statusReads === 1 ? "valid" : "absent",
+        activation_required: statusReads === 1,
+        editable_revision: statusReads === 1 ? "rev-draft" : "rev-active",
+      };
+    } else {
+      response = { ok: true, operation: "activate", active_revision: "rev-active", draft_revision: null };
+    }
+    return { context: {}, response };
+  }, true));
+  const loadedViews = [];
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter,
+    status: { draft_state: "valid", activation_required: true },
+    busy: false,
+    render() {},
+    async loadRecords(view) { loadedViews.push(view); },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  const activationCalls = calls.filter((call) => call.service === "activate_intent_catalogue");
+  assert.equal(activationCalls.length, 1);
+  assert.equal(activationCalls[0].service_data.expected_revision, "rev-draft");
+  assert.deepEqual(loadedViews, ["active"]);
+  assert.equal(panel.notice.kind, "success");
+});
+
+test("stale activation conflict is surfaced without retry or false success", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  let activations = 0;
+  let activeLoads = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async activate() {
+        activations += 1;
+        return { conflict: true, refreshed_status: { draft_state: "valid", activation_required: true, editable_revision: "rev-new" } };
+      },
+    },
+    status: { draft_state: "valid", activation_required: true, editable_revision: "rev-old" },
+    busy: false,
+    render() {},
+    async loadRecords() { activeLoads += 1; },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 1);
+  assert.equal(activeLoads, 0);
+  assert.equal(panel.status.editable_revision, "rev-new");
+  assert.equal(panel.notice.kind, "warning");
+  assert.doesNotMatch(panel.notice.text, /success/i);
+});
+
+test("activation timeout remains indeterminate and reconciles status plus selected view", async () => {
+  const priorConfirm = globalThis.confirm;
+  globalThis.confirm = () => true;
+  let activations = 0;
+  let statusReads = 0;
+  const loadedViews = [];
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    adapter: {
+      canManage: true,
+      async activate() { activations += 1; throw new ASTVAdapterError("timeout", "timeout", "Timed out calling activation."); },
+      async status() { statusReads += 1; return { ok: true, draft_state: "valid", activation_required: true, editable_revision: "rev-reconciled" }; },
+    },
+    status: { draft_state: "valid", activation_required: true, editable_revision: "rev-before" },
+    busy: false,
+    render() {},
+    async loadRecords(view) { loadedViews.push(view); },
+  });
+  try {
+    await panel.activateDraft();
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+
+  assert.equal(activations, 1);
+  assert.equal(statusReads, 1);
+  assert.deepEqual(loadedViews, ["draft"]);
+  assert.equal(panel.status.editable_revision, "rev-reconciled");
+  assert.equal(panel.notice.kind, "warning");
+  assert.match(panel.notice.text, /outcome is uncertain/i);
 });
 
 test("Home Assistant state updates preserve the mounted panel DOM", () => {
@@ -239,7 +568,7 @@ test("search input updates list rows in place without replacing the focused cont
       { intentId: "classic_fm", record: { intent: "media.play_source", title: "Classic FM" } },
       { intentId: "morning", record: { intent: "routine.run", title: "Morning" } },
     ],
-    tagCounts: new Map(),
+    associations: new Map(),
     listScrollTop: 19,
     render() { throw new Error("search must not perform a full render"); },
   });

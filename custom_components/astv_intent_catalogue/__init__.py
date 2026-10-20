@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ConfigEntryError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.service import async_register_admin_service
 from homeassistant.helpers.typing import ConfigType
 
@@ -38,6 +39,10 @@ from .const import (
     SERVICE_VALIDATE_INTENT_CATALOGUE,
     SERVICE_VALIDATE_INTENT_RECORD,
 )
+from .panel import async_register_frontend
+
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 def _lookup_value(value: Any) -> str | int | float | bool:
@@ -315,6 +320,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             schema=schema,
             supports_response=SupportsResponse.ONLY,
         )
+    await async_register_frontend(hass)
     return True
 
 

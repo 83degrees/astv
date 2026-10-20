@@ -5,6 +5,11 @@ from pathlib import Path
 DOMAIN = "astv_intent_catalogue"
 SERVICE_LOOKUP = "lookup"
 
+PANEL_URL_PATH = "astv-intent-catalogue"
+PANEL_WEB_COMPONENT = "astv-intent-catalogue-panel"
+PANEL_STATIC_URL = "/astv_intent_catalogue_static"
+PANEL_MODULE = "astv-intent-catalogue-panel.mjs"
+
 SERVICE_GET_ADMINISTRATION_CAPABILITIES = "get_administration_capabilities"
 SERVICE_GET_ADMINISTRATION_STATUS = "get_administration_status"
 SERVICE_LIST_INTENT_RECORDS = "list_intent_records"

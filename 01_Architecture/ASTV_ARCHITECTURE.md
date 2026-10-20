@@ -36,8 +36,8 @@ rationale.
 
 The design in this section was accepted under ASTV-331, implemented and cut
 over under ASTV-333, and extended with the accepted administration lifecycle
-under ASTV-334 and ASTV-335. It is current approved and implemented
-architecture. The accepted HACS Beta `v0.3.0-beta.da8e078` remains installed on
+under ASTV-334, ASTV-335 and ASTV-358. It is current approved and implemented
+architecture. The accepted HACS Beta `v0.4.0-beta.eedcc7a` is installed on
 `starburst`; stable integration release `v0.3.0` is published but not installed
 there.
 
@@ -169,7 +169,7 @@ contexts remain unchanged.
 ### Ownership and boundary
 
 ASTV provides the independent interface
-astv.intent_catalogue.administration version 1.0.0 through response-only Home
+astv.intent_catalogue.administration version 1.1.0 through response-only Home
 Assistant actions in the astv_intent_catalogue domain. Clients consume
 normalized records, capabilities, status and opaque revisions. They do not
 consume YAML, filenames, paths or provider storage objects.
@@ -225,6 +225,74 @@ The durable rationale is recorded by
 DDR-01-003_DURABLE_SHARED_INTENT_CATALOGUE_DRAFT_AND_EXPLICIT_ACTIVATION.md.
 The exact action, response, concurrency, error and recovery promises are owned
 by ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md.
+
+## Administration Panel and Provider Adapter
+
+### Integration-owned presentation boundary
+
+ASTV owns one Home Assistant custom panel bundled inside the existing
+`haos_integration` deployable unit. The integration registers a non-iframe
+sidebar entry and serves the module from its installed
+`custom_components/astv_intent_catalogue/frontend/` directory. It does not add
+a Home Assistant App, shared web server, direct YAML transport or second
+deployment mechanism. The governed runtime-flow diagram remains focused on the
+intent/execution pipeline; this administration presentation does not enter or
+alter that flow.
+
+The panel is visible to authenticated non-admin users because the provider's
+capability, status and normalized active/draft reads use the contract's read
+authorization class. The browser may use `hass.user.is_admin` to present
+manage affordances, but that is presentation only. Every validation, staging,
+discard and activation request remains protected by Home Assistant's
+provider-side admin-service enforcement.
+
+### Authenticated transport and adapter behavior
+
+The panel uses the authenticated Home Assistant frontend WebSocket connection.
+Each provider call sends `type: call_service` with `return_response: true`, as
+required by `SupportsResponse.ONLY`, and consumes the returned `response`
+object. Home Assistant transport errors remain distinct from structured ASTV
+`ok: false` outcomes. Loading and bounded-timeout state belong to the client;
+timeouts never imply that a state-changing operation did not reach the
+provider, so the client reconciles through status before any further write.
+
+The provider adapter negotiates the administration interface through
+capability discovery before depending on optional operations. Active and draft
+views are always explicit in client state. A durable draft is read only through
+the provider's v1.1.0 `view: draft` projection; active data or browser-local
+state is never presented as that shared draft.
+
+Before every guarded mutation, the adapter refreshes status and supplies the
+observed `editable_revision`. A `stale_revision` outcome causes a fresh status
+and selected-view read plus an explicit conflict result. The adapter does not
+retry, merge or overwrite automatically. Save remains staged; activation is a
+separate explicit operation.
+
+### Schema and optional reverse association
+
+The panel adapter preserves ASTV Intent Catalogue schema v1.0.0. UI Name maps
+to `title`; `intent_id` is immutable after creation; supported discriminators
+remain `media.play_source` and `routine.run`; and no Description field is
+introduced.
+
+AdvNFC reverse association is an optional read-only provider call through
+`advnfc.tag_mapping.administration`. AdvNFC remains authoritative for tags and
+mapping records. Missing or incompatible AdvNFC produces an unavailable/empty
+association state without disabling ASTV reads, staging or activation.
+
+### Asset identity, update and removal
+
+The frontend module is part of the HACS-installed integration tree. Its panel
+URL includes a digest derived from the installed module bytes, so a changed
+asset receives a new browser cache identity after the HACS-required Home
+Assistant restart. HACS remains the only routine install/update/removal
+mechanism. Config-entry unload deliberately leaves the panel registered because
+the read boundary and unavailable status remain useful; full integration
+update or removal is completed by the normal HACS operation and restart, which
+rebuilds the process routes from the installed tree.
+
+The durable choice and rejected alternatives are recorded by
+`DDR-01-004_INTEGRATION_OWNED_ADMINISTRATION_PANEL_AND_PROVIDER_ADAPTER.md`.
 
 ## End-to-End Flow
 

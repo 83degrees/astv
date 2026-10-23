@@ -342,7 +342,7 @@ export class ASTVIntentCataloguePanel extends HTMLElement {
   }
   bindEditorEvents() {
     const root = this.shadowRoot; const form = root.querySelector("form");
-    root.querySelector("[data-action=cancel]")?.addEventListener("click", () => this.closeEditor());
+    root.querySelectorAll("[data-action=cancel]").forEach((button) => button.addEventListener("click", () => this.closeEditor()));
     root.querySelector("[data-action=delete]")?.addEventListener("click", () => void this.deleteEditor());
     form?.addEventListener("submit", (event) => { event.preventDefault(); void this.saveEditor(); });
     form?.addEventListener("input", () => this.updateEditorFromForm(form));

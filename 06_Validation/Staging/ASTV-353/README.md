@@ -79,3 +79,10 @@ under the Home Assistant identity. Tracing, automatic screenshots, and video are
 disabled; the final teardown redacts every synthetic credential/token byte
 sequence from text or binary evidence before upload, records that privacy
 result, removes both private session files, and still disposes all resources.
+Once bootstrap records the stage as prepared, missing or inaccessible baseline,
+fixture, session, or staging-configuration inputs make fixture/segregation
+evidence explicitly fail rather than remain `not_run`. Artifact upload has a
+separate fail-closed gate after teardown: it requires a successful privacy
+manifest, no residual private files, verified disposal, a regular safe evidence
+tree, and no trace/video/archive output. Failed, missing, or indeterminate
+privacy verification therefore uploads nothing.

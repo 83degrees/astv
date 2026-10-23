@@ -219,6 +219,7 @@ jobs:
           test -z "$(sudo find "${stage_root}/config" -perm /022 -print -quit)"
           sudo find "${stage_root}/config" -printf '%m %U:%G %p\n' | sort > "${stage_root}/evidence/config-permissions-after-bootstrap.txt"
           sudo cp "${stage_root}/config/staging/stage-evidence.json" "${stage_root}/evidence/stage-evidence.json"
+          printf '%s\n' prepared > "${stage_root}/evidence/stage-prepared.status"
 
       - name: Run desktop, mobile, and permission browser checks
         shell: bash
@@ -252,62 +253,23 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -uo pipefail
-          validation_rc=0
-          browser_status=not_run
-          fixture_integrity=not_run
-          segregation=not_run
-          restoration=not_applicable_read_only
+          set -u
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
           if test -n "${stage_root}" && test -d "${stage_root}"; then
-            if test -f "${stage_root}/evidence/browser-execution.status"; then
-              browser_status="$(cat "${stage_root}/evidence/browser-execution.status")"
-              if test "${browser_status}" = started; then
-                browser_status=failed
-                printf '%s\n' failed > "${stage_root}/evidence/browser-execution.status"
-              fi
-              test "${browser_status}" = passed || validation_rc=1
-            fi
-            if test -f "${stage_root}/evidence/config-before.sha256" \
-              && sudo test -f "${stage_root}/config/astv/astv_intent_catalogue.yaml" \
-              && sudo test -f "${stage_root}/config/AdvNFC/advnfc_tag_mapping.yaml"; then
-              before_catalogue="$(grep '/astv/astv_intent_catalogue.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
-              before_mapping="$(grep '/AdvNFC/advnfc_tag_mapping.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
-              fixture_integrity=passed
-              test -n "${before_catalogue}" \
-                && test "${before_catalogue}" = "$(sudo sha256sum "${stage_root}/config/astv/astv_intent_catalogue.yaml" | cut -d' ' -f1)" \
-                || fixture_integrity=failed
-              test -n "${before_mapping}" \
-                && test "${before_mapping}" = "$(sudo sha256sum "${stage_root}/config/AdvNFC/advnfc_tag_mapping.yaml" | cut -d' ' -f1)" \
-                || fixture_integrity=failed
-              test "${fixture_integrity}" = passed || validation_rc=1
-            fi
-            if sudo test -d "${stage_root}/config"; then
-              segregation=passed
-              sudo grep -R -E -i -q '(ha-starburst|assistive/nfc|mqtt:|password:|api_key:|bearer )' \
-                "${stage_root}/config" \
-                --exclude='browser-session.json' \
-                --exclude='private-artifact-secrets.json' \
-                && segregation=failed
-              test "${segregation}" = passed || validation_rc=1
-            fi
-            jq -n \
-              --arg browser_checks "${browser_status}" \
-              --arg fixture_integrity "${fixture_integrity}" \
-              --arg restoration "${restoration}" \
-              --arg segregation "${segregation}" \
-              '{browser_checks:$browser_checks,fixture_integrity:$fixture_integrity,restoration:$restoration,segregation:$segregation}' \
-              > "${stage_root}/evidence/post-browser-validation.json"
-          else
-            validation_rc=1
+            sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py" \
+              post-browser "${stage_root}"
+            validation_rc=$?
+            sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence" || true
+            exit "${validation_rc}"
           fi
-          exit "${validation_rc}"
+          exit 1
 
       - name: Capture logs and dispose all staging resources
         if: always()
         shell: bash
         run: |
           privacy_rc=0
+          cleanup_rc=0
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
           if test -n "${stage_root}" && test -d "${stage_root}"; then
             log_path="${RUNNER_TEMP}/astv353-home-assistant.log"
@@ -336,15 +298,42 @@ jobs:
           fi
           docker rm --force "${BROWSER_CONTAINER}" "${STAGE_CONTAINER}" >/dev/null 2>&1 || true
           docker network rm "${STAGE_NETWORK}" >/dev/null 2>&1 || true
-          ! docker ps --all --format '{{.Names}}' | grep -Eq '^astv353-(home-assistant|browser)$'
-          ! docker network ls --format '{{.Name}}' | grep -qx "${STAGE_NETWORK}"
-          if test -n "${stage_root}" && test -d "${stage_root}"; then
-            printf '%s\n' 'containers_removed=true' 'network_removed=true' > "${stage_root}/evidence/disposal.txt"
+          if container_names="$(docker ps --all --format '{{.Names}}')"; then
+            grep -Eq '^astv353-(home-assistant|browser)$' <<<"${container_names}" && cleanup_rc=1
+          else
+            cleanup_rc=1
           fi
-          exit "${privacy_rc}"
+          if network_names="$(docker network ls --format '{{.Name}}')"; then
+            grep -qx "${STAGE_NETWORK}" <<<"${network_names}" && cleanup_rc=1
+          else
+            cleanup_rc=1
+          fi
+          if test -n "${stage_root}" && test -d "${stage_root}"; then
+            if test "${cleanup_rc}" -eq 0; then
+              printf '%s\n' 'containers_removed=true' 'network_removed=true' > "${stage_root}/evidence/disposal.txt"
+            else
+              printf '%s\n' 'containers_removed=false' 'network_removed=false' > "${stage_root}/evidence/disposal.txt"
+            fi
+          fi
+          test "${privacy_rc}" -eq 0 && test "${cleanup_rc}" -eq 0
+
+      - name: Authorize sanitized evidence upload
+        id: evidence_upload_gate
+        if: always()
+        shell: bash
+        run: |
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
+          if test -n "${stage_root}" \
+            && python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py" \
+              authorize-upload "${stage_root}"; then
+            echo 'safe=true' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'safe=false' >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
 
       - name: Upload immutable staging evidence
-        if: always()
+        if: always() && steps.evidence_upload_gate.outputs.safe == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: astv-353-disposable-staging-evidence-${{ github.run_id }}

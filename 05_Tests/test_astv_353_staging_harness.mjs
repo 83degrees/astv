@@ -15,8 +15,36 @@ const playwrightConfig = fs.readFileSync("06_Validation/Staging/ASTV-353/browser
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
 const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/prepare_stage.py", "utf8");
 const sanitizer = "06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py";
+const evidenceControls = "06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py";
+const evidenceControlsSource = fs.readFileSync(evidenceControls, "utf8");
 
 const sha256 = (path) => crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
+const pythonCommand = () => process.env.ASTV353_PYTHON || (process.platform === "win32" ? "py" : "python3");
+const runPython = (script, args) => spawnSync(pythonCommand(), [script, ...args], { encoding: "utf8" });
+
+function createPreparedStage(root) {
+  const evidence = path.join(root, "evidence");
+  const config = path.join(root, "config");
+  const catalogue = path.join(config, "astv", "astv_intent_catalogue.yaml");
+  const mapping = path.join(config, "AdvNFC", "advnfc_tag_mapping.yaml");
+  fs.mkdirSync(path.dirname(catalogue), { recursive: true });
+  fs.mkdirSync(path.dirname(mapping), { recursive: true });
+  fs.mkdirSync(path.join(config, "staging"), { recursive: true });
+  fs.mkdirSync(evidence, { recursive: true });
+  fs.writeFileSync(catalogue, "schema: astv.intent_catalogue\nrecords: {}\n");
+  fs.writeFileSync(mapping, "mappings: {}\n");
+  fs.writeFileSync(path.join(config, "configuration.yaml"), "default_config:\n");
+  fs.writeFileSync(path.join(config, "staging", "prepare_stage.py"), "pass\n");
+  fs.writeFileSync(path.join(config, "staging", "browser-session.json"), "{}\n");
+  fs.writeFileSync(path.join(config, "staging", "private-artifact-secrets.json"), "{}\n");
+  fs.writeFileSync(path.join(evidence, "stage-prepared.status"), "prepared\n");
+  fs.writeFileSync(path.join(evidence, "browser-execution.status"), "passed\n");
+  fs.writeFileSync(
+    path.join(evidence, "config-before.sha256"),
+    `${sha256(catalogue)}  ${catalogue.replaceAll("\\", "/")}\n${sha256(mapping)}  ${mapping.replaceAll("\\", "/")}\n`,
+  );
+  return { catalogue, config, evidence, mapping };
+}
 
 test("workflow exposes only the exact PR-labeled read-only route and always disposes resources", () => {
   assert.match(workflow, /pull_request:/);
@@ -41,6 +69,9 @@ test("workflow exposes only the exact PR-labeled read-only route and always disp
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /docker rm --force/);
   assert.match(workflow, /docker network rm/);
+  assert.match(workflow, /cleanup_rc=1/);
+  assert.match(workflow, /containers_removed=false/);
+  assert.match(workflow, /test "\$\{privacy_rc\}" -eq 0 && test "\$\{cleanup_rc\}" -eq 0/);
 });
 test("accepted product and platform identities are explicit and fail closed", () => {
   assert.match(workflow, /v0\.5\.0-beta\.c630ce5/);
@@ -208,13 +239,78 @@ test("read-only desktop coverage includes accessible focus and keyboard navigati
 test("failure-path evidence uses explicit states and teardown remains unconditional", () => {
   assert.match(workflow, /name: Capture fixture integrity and segregation evidence\s+if: always\(\)/);
   for (const state of ["not_run", "failed", "passed", "not_applicable_read_only"]) {
-    assert.match(workflow, new RegExp(state));
+    assert.match(evidenceControlsSource, new RegExp(state));
   }
-  assert.match(workflow, /post-browser-validation\.json/);
-  assert.match(workflow, /fixture_integrity/);
-  assert.match(workflow, /segregation/);
+  assert.match(workflow, /stage-prepared\.status/);
+  assert.match(workflow, /evidence_controls\.py" \\\n\s+post-browser/);
+  assert.match(evidenceControlsSource, /post-browser-validation\.json/);
+  assert.match(evidenceControlsSource, /fixture_integrity/);
+  assert.match(evidenceControlsSource, /segregation/);
   assert.match(workflow, /docker rm --force/);
   assert.match(workflow, /docker network rm/);
+});
+
+test("prepared-stage evidence fails closed for missing baseline, fixture, or configuration", () => {
+  const completeRoot = fs.mkdtempSync(path.join(os.tmpdir(), "astv353-complete-"));
+  try {
+    const { evidence } = createPreparedStage(completeRoot);
+    const complete = runPython(evidenceControls, ["post-browser", completeRoot]);
+    assert.equal(complete.status, 0, complete.stderr);
+    const report = JSON.parse(fs.readFileSync(path.join(evidence, "post-browser-validation.json"), "utf8"));
+    assert.equal(report.fixture_integrity, "passed");
+    assert.equal(report.segregation, "passed");
+  } finally {
+    fs.rmSync(completeRoot, { recursive: true, force: true });
+  }
+
+  const cases = [
+    ["baseline", ({ evidence }) => fs.rmSync(path.join(evidence, "config-before.sha256"))],
+    ["fixture", ({ catalogue }) => fs.rmSync(catalogue)],
+    ["configuration", ({ config }) => fs.rmSync(path.join(config, "configuration.yaml"))],
+  ];
+  for (const [name, removeRequiredInput] of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `astv353-${name}-`));
+    try {
+      const paths = createPreparedStage(root);
+      removeRequiredInput(paths);
+      const result = runPython(evidenceControls, ["post-browser", root]);
+      assert.notEqual(result.status, 0, `${name} unexpectedly passed: ${result.stderr}`);
+      const report = JSON.parse(fs.readFileSync(path.join(paths.evidence, "post-browser-validation.json"), "utf8"));
+      if (name === "configuration") assert.equal(report.segregation, "failed");
+      else assert.equal(report.fixture_integrity, "failed");
+      assert.equal(report.stage_preparation, "passed");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("privacy failure and residual private files deny artifact upload", () => {
+  assert.match(workflow, /id: evidence_upload_gate/);
+  assert.match(workflow, /if: always\(\) && steps\.evidence_upload_gate\.outputs\.safe == 'true'/);
+  assert.doesNotMatch(workflow, /name: Upload immutable staging evidence\s+if: always\(\)\s+uses:/);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "astv353-upload-denied-"));
+  try {
+    const { config, evidence } = createPreparedStage(root);
+    fs.writeFileSync(path.join(evidence, "unsafe-report.txt"), "synthetic-token remains");
+    const sanitizerFailure = runPython(sanitizer, [path.join(root, "missing-secrets.json"), evidence]);
+    assert.notEqual(sanitizerFailure.status, 0);
+    fs.writeFileSync(path.join(evidence, "artifact-privacy.json"), '{"status":"failed"}\n');
+    fs.writeFileSync(path.join(evidence, "post-browser-validation.json"), "{}\n");
+    fs.writeFileSync(path.join(evidence, "disposal.txt"), "containers_removed=true\nnetwork_removed=true\n");
+    assert.notEqual(runPython(evidenceControls, ["authorize-upload", root]).status, 0);
+
+    fs.writeFileSync(path.join(evidence, "artifact-privacy.json"), JSON.stringify({
+      status: "passed",
+      trace_capture: "disabled",
+      secret_patterns_checked: 5,
+    }));
+    assert.ok(fs.existsSync(path.join(config, "staging", "private-artifact-secrets.json")));
+    assert.notEqual(runPython(evidenceControls, ["authorize-upload", root]).status, 0);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("browser secrets are minimized and artifact evidence is redacted", () => {
@@ -247,8 +343,7 @@ test("browser secrets are minimized and artifact evidence is redacted", () => {
     }));
     fs.writeFileSync(path.join(evidence, "diagnostic.txt"), "user=synthetic-admin token=synthetic-token useful-detail");
     fs.writeFileSync(path.join(evidence, "binary.bin"), Buffer.from("prefix synthetic-reader-password suffix"));
-    const command = process.env.ASTV353_PYTHON || (process.platform === "win32" ? "py" : "python3");
-    const result = spawnSync(command, [sanitizer, secrets, evidence], { encoding: "utf8" });
+    const result = runPython(sanitizer, [secrets, evidence]);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(fs.readFileSync(path.join(evidence, "diagnostic.txt"), "utf8"), "user=[REDACTED] token=[REDACTED] useful-detail");
     assert.equal(fs.readFileSync(path.join(evidence, "binary.bin"), "utf8"), "prefix [REDACTED] suffix");

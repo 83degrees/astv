@@ -7,7 +7,7 @@ authorize dispatching it.
 
 The workflow assembles the stage from immutable product identities:
 
-- ASTV `v0.5.0-beta.603e6e1` / `603e6e160ba90628da09b88aad3ac4ad2fe35759`;
+- ASTV `v0.5.0-beta.603e6e1` / `603e6e160b00a357c205b343a950ad64f5a1afae`;
 - AdvNFC `v1.6.0-beta.dbef2f5` / `dbef2f5133d2efb6f426b348916dc0c58ec1e147`;
 - Home Assistant Core `2026.9.4`; and
 - Playwright `1.56.1` in the matching versioned browser image.

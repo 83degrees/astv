@@ -20,7 +20,7 @@ test("workflow is manual, human-gated, internally networked, and unconditionally
 });
 test("accepted product and platform identities are explicit and fail closed", () => {
   assert.match(workflow, /v0\.5\.0-beta\.603e6e1/);
-  assert.match(workflow, /603e6e160ba90628da09b88aad3ac4ad2fe35759/);
+  assert.match(workflow, /603e6e160b00a357c205b343a950ad64f5a1afae/);
   assert.match(workflow, /v1\.6\.0-beta\.dbef2f5/);
   assert.match(workflow, /dbef2f5133d2efb6f426b348916dc0c58ec1e147/);
   assert.match(workflow, /home-assistant:2026\.9\.4/);

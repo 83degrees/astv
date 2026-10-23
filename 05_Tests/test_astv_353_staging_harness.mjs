@@ -52,6 +52,29 @@ test("runtime ownership is derived from the pinned HA image and never made group
   assert.doesNotMatch(workflow, /--privileged/);
 });
 
+test("no-published-ports assertion accepts only explicit null or an empty object", () => {
+  const jqAssertion = 'has("published_ports") and ((.published_ports | type) == "null" or ((.published_ports | type) == "object" and (.published_ports | length) == 0))';
+  assert.ok(workflow.includes(`jq -e '${jqAssertion}'`));
+
+  const acceptsNoPublishedPorts = (isolation) => {
+    if (!Object.hasOwn(isolation, "published_ports")) return false;
+    const bindings = isolation.published_ports;
+    return bindings === null || (
+      typeof bindings === "object" &&
+      !Array.isArray(bindings) &&
+      Object.keys(bindings).length === 0
+    );
+  };
+
+  assert.equal(acceptsNoPublishedPorts({ published_ports: null }), true);
+  assert.equal(acceptsNoPublishedPorts({ published_ports: {} }), true);
+  assert.equal(acceptsNoPublishedPorts({ published_ports: { "8123/tcp": [{ HostPort: "8123" }] } }), false);
+  for (const invalid of [[], "", 0, false]) {
+    assert.equal(acceptsNoPublishedPorts({ published_ports: invalid }), false);
+  }
+  assert.equal(acceptsNoPublishedPorts({}), false);
+});
+
 test("bootstrap completes HA onboarding before config-entry and browser preparation", () => {
   for (const endpoint of ["core_config", "analytics", "integration"]) {
     assert.match(prepareStage, new RegExp(`/api/onboarding/${endpoint}`));

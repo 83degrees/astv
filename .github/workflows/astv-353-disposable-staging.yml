@@ -225,7 +225,7 @@ jobs:
             > "${stage_root}/evidence/ha-isolation.json"
           docker network inspect "${STAGE_NETWORK}" --format '{"internal":{{.Internal}},"containers":{{json .Containers}}}' > "${stage_root}/evidence/network-isolation.json"
           jq -e '.internal == true' "${stage_root}/evidence/network-isolation.json" >/dev/null
-          jq -e '.published_ports == null' "${stage_root}/evidence/ha-isolation.json" >/dev/null
+          jq -e 'has("published_ports") and ((.published_ports | type) == "null" or ((.published_ports | type) == "object" and (.published_ports | length) == 0))' "${stage_root}/evidence/ha-isolation.json" >/dev/null
 
       - name: Bootstrap identities and synthetic fixtures
         shell: bash

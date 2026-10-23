@@ -268,6 +268,7 @@ jobs:
         if: always()
         shell: bash
         run: |
+          permission_rc=0
           privacy_rc=0
           cleanup_rc=0
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
@@ -279,6 +280,10 @@ jobs:
             for name in stage-evidence.json lifecycle-evidence.json; do
               sudo test -f "${stage_root}/config/staging/${name}" && sudo cp "${stage_root}/config/staging/${name}" "${stage_root}/evidence/${name}" || true
             done
+            if test -f "${stage_root}/evidence/stage-prepared.status"; then
+              sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/verify_permission_evidence.py" \
+                "${stage_root}/evidence" || permission_rc=$?
+            fi
             if sudo test -f "${stage_root}/config/staging/private-artifact-secrets.json"; then
               sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py" \
                 "${stage_root}/config/staging/private-artifact-secrets.json" \
@@ -315,7 +320,7 @@ jobs:
               printf '%s\n' 'containers_removed=false' 'network_removed=false' > "${stage_root}/evidence/disposal.txt"
             fi
           fi
-          test "${privacy_rc}" -eq 0 && test "${cleanup_rc}" -eq 0
+          test "${permission_rc}" -eq 0 && test "${privacy_rc}" -eq 0 && test "${cleanup_rc}" -eq 0
 
       - name: Authorize sanitized evidence upload
         id: evidence_upload_gate

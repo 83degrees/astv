@@ -5,7 +5,11 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { classifyAuthenticationState, requireNativeUnauthorized } from "../06_Validation/Staging/ASTV-353/browser/browser-contract.mjs";
+import {
+  classifyAuthenticationState,
+  permissionProbeRequest,
+  requireBackendUnauthorizedProof,
+} from "../06_Validation/Staging/ASTV-353/browser/browser-contract.mjs";
 
 const workflow = fs.readFileSync(".github/workflows/astv-353-disposable-staging.yml", "utf8");
 const catalogue = fs.readFileSync("06_Validation/Staging/ASTV-353/config/astv/astv_intent_catalogue.yaml", "utf8");
@@ -17,6 +21,7 @@ const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/stag
 const sanitizer = "06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py";
 const evidenceControls = "06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py";
 const evidenceControlsSource = fs.readFileSync(evidenceControls, "utf8");
+const permissionVerifier = "06_Validation/Staging/ASTV-353/config/staging/verify_permission_evidence.py";
 
 const sha256 = (path) => crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 const pythonCommand = () => process.env.ASTV353_PYTHON || (process.platform === "win32" ? "py" : "python3");
@@ -71,7 +76,7 @@ test("workflow exposes only the exact PR-labeled read-only route and always disp
   assert.match(workflow, /docker network rm/);
   assert.match(workflow, /cleanup_rc=1/);
   assert.match(workflow, /containers_removed=false/);
-  assert.match(workflow, /test "\$\{privacy_rc\}" -eq 0 && test "\$\{cleanup_rc\}" -eq 0/);
+  assert.match(workflow, /test "\$\{permission_rc\}" -eq 0 && test "\$\{privacy_rc\}" -eq 0 && test "\$\{cleanup_rc\}" -eq 0/);
 });
 test("accepted product and platform identities are explicit and fail closed", () => {
   assert.match(workflow, /v0\.5\.0-beta\.c630ce5/);
@@ -212,8 +217,13 @@ test("login waits for authenticated HA state and explicitly routes to the panel"
   assert.match(browser, /typeof homeAssistant\.hass\.callWS === "function"/);
 });
 
-test("permission probe fails closed unless the backend returns native Unauthorized", () => {
-  assert.doesNotThrow(() => requireNativeUnauthorized({ kind: "backend_denial", code: "unauthorized" }));
+test("permission probe accepts only native Unauthorized or the audited HA wrapper", () => {
+  assert.deepEqual(requireBackendUnauthorizedProof({ kind: "backend_denial", code: "unauthorized" }), {
+    status: "passed", proof: "native_error_code",
+  });
+  assert.deepEqual(requireBackendUnauthorizedProof({ kind: "backend_denial", code: "home_assistant_error" }), {
+    status: "pending_backend_log", proof: "exact_service_unauthorized_log",
+  });
   for (const result of [
     { kind: "precondition_failure", reason: "missing_hass" },
     { kind: "precondition_failure", reason: "missing_callWS" },
@@ -221,9 +231,73 @@ test("permission probe fails closed unless the backend returns native Unauthoriz
     { kind: "unexpected_exception", reason: "string" },
     { kind: "backend_denial", code: "invalid_format" },
     { kind: "backend_denial", code: "connection_error" },
-  ]) assert.throws(() => requireNativeUnauthorized(result));
-  assert.match(browser, /service: "validate_intent_record"/);
-  assert.doesNotMatch(browser, /service: "create_intent_record"/);
+  ]) assert.throws(() => requireBackendUnauthorizedProof(result));
+  assert.deepEqual(permissionProbeRequest(), {
+    type: "call_service",
+    domain: "astv_intent_catalogue",
+    service: "validate_intent_record",
+    service_data: {
+      intent_id: "astv353_validation",
+      record: {
+        intent: "media.play_source",
+        title: "ASTV 353 validation media",
+        params: {
+          output: { domain: "audio" },
+          catalogue_id: "astv_353_stage",
+          item_id: "validation_media",
+        },
+      },
+    },
+    return_response: true,
+  });
+  assert.doesNotMatch(browser, /create_intent_record/);
+  assert.match(browser, /status: verification\.status/);
+  assert.match(workflow, /verify_permission_evidence\.py/);
+  assert.match(workflow, /test "\$\{permission_rc\}" -eq 0/);
+});
+
+test("wrapped Home Assistant errors require the exact backend Unauthorized event", () => {
+  const exactEvent = "Error during service call to astv_intent_catalogue.validate_intent_record: Unauthorized";
+  const cases = [
+    ["exact", exactEvent + "\n", 0],
+    ["unrelated-service", "Error during service call to light.turn_on: Unauthorized\n", 1],
+    ["different-exception", "Error during service call to astv_intent_catalogue.validate_intent_record: ValueError\n", 1],
+    ["missing-log", null, 1],
+  ];
+  for (const [name, log, expectedStatus] of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `astv353-permission-${name}-`));
+    try {
+      fs.writeFileSync(path.join(root, "permission.json"), JSON.stringify({
+        status: "pending_backend_log",
+        proof: "exact_service_unauthorized_log",
+        probe: { kind: "backend_denial", code: "home_assistant_error" },
+      }));
+      if (log !== null) fs.writeFileSync(path.join(root, "home-assistant.log"), log);
+      const result = runPython(permissionVerifier, [root]);
+      assert.equal(result.status, expectedStatus, `${name}: ${result.stderr}`);
+      const report = JSON.parse(fs.readFileSync(path.join(root, "permission-proof.json"), "utf8"));
+      assert.equal(report.status, expectedStatus === 0 ? "passed" : "failed");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("native structured Unauthorized is sufficient without diagnostic log parsing", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "astv353-native-permission-"));
+  try {
+    fs.writeFileSync(path.join(root, "permission.json"), JSON.stringify({
+      status: "passed",
+      proof: "native_error_code",
+      probe: { kind: "backend_denial", code: "unauthorized" },
+    }));
+    const result = runPython(permissionVerifier, [root]);
+    assert.equal(result.status, 0, result.stderr);
+    const report = JSON.parse(fs.readFileSync(path.join(root, "permission-proof.json"), "utf8"));
+    assert.equal(report.proof, "native_error_code");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("read-only desktop coverage includes accessible focus and keyboard navigation", () => {

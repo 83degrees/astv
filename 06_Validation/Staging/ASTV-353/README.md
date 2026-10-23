@@ -45,8 +45,15 @@ waits for an authenticated Home Assistant client, fails explicitly on a login
 error, and then opens the ASTV panel route with bounded checks. Desktop checks
 exercise labelled controls and keyboard focus/navigation without invoking Add,
 Save, Delete, or Activate. The non-admin check calls the side-effect-free,
-admin-only `validate_intent_record` action and accepts only Home Assistant's
-native `unauthorized` rejection.
+admin-only `validate_intent_record` action. A native structured `unauthorized`
+code is conclusive. Home Assistant 2026.9.4 instead wraps the observed backend
+denial as `home_assistant_error`; that code alone is never sufficient. For that
+wrapper, the browser records a sanitized pending result and the teardown must
+independently find the exact
+`astv_intent_catalogue.validate_intent_record: Unauthorized` backend log event
+from the fresh disposable stage. Missing or unrelated logs, other wrapper
+codes, malformed/precondition failures, transport errors, and unexpected
+success all fail closed.
 
 Pinned fixture SHA-256 identities are checked offline:
 

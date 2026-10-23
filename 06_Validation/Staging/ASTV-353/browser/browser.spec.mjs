@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import { test, expect } from "@playwright/test";
-import { PANEL_PATH, classifyAuthenticationState, requireNativeUnauthorized } from "./browser-contract.mjs";
+import {
+  PANEL_PATH,
+  classifyAuthenticationState,
+  permissionProbeRequest,
+  requireBackendUnauthorizedProof,
+} from "./browser-contract.mjs";
 
 const session = JSON.parse(fs.readFileSync("/stage/staging/browser-session.json", "utf8"));
 const evidenceDir = "/evidence";
@@ -105,38 +110,31 @@ test("non-admin is authenticated read-only and backend rejects admin-only valida
     await openPanel(page);
     await expect(page.getByText("Read only").first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Add intent" })).toHaveCount(0);
-    const result = await page.evaluate(async () => {
+    const result = await page.evaluate(async (request) => {
       const homeAssistant = document.querySelector("home-assistant");
       if (!homeAssistant?.hass) return { kind: "precondition_failure", reason: "missing_hass" };
       if (typeof homeAssistant.hass.callWS !== "function") return { kind: "precondition_failure", reason: "missing_callWS" };
       try {
-        await homeAssistant.hass.callWS({
-          type: "call_service",
-          domain: "astv_intent_catalogue",
-          service: "validate_intent_record",
-          service_data: {
-            intent_id: "astv353_validation",
-            record: {
-              intent: "media.play_source",
-              title: "ASTV 353 validation media",
-              params: {
-                output: { domain: "audio" },
-                catalogue_id: "astv_353_stage",
-                item_id: "validation_media",
-              },
-            },
-          },
-          return_response: true,
-        });
+        await homeAssistant.hass.callWS(request);
         return { kind: "unexpected_success" };
       } catch (error) {
         if (!error || typeof error !== "object") return { kind: "unexpected_exception", reason: typeof error };
         return { kind: "backend_denial", code: String(error.code ?? "") };
       }
-    });
-    requireNativeUnauthorized(result);
+    }, permissionProbeRequest());
+    let verification;
+    try {
+      verification = requireBackendUnauthorizedProof(result);
+    } catch (error) {
+      fs.writeFileSync(`${evidenceDir}/permission.json`, JSON.stringify({ status: "failed", probe: result }, null, 2) + "\n");
+      throw error;
+    }
+    fs.writeFileSync(`${evidenceDir}/permission.json`, JSON.stringify({
+      status: verification.status,
+      proof: verification.proof,
+      probe: result,
+    }, null, 2) + "\n");
     await page.screenshot({ path: `${evidenceDir}/non-admin-read-only.png`, fullPage: true });
-    fs.writeFileSync(`${evidenceDir}/permission.json`, JSON.stringify(result, null, 2) + "\n");
   } finally {
     await context.close();
   }

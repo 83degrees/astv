@@ -143,6 +143,59 @@ jobs:
           jq -e 'length > 0' "${stage_root}/evidence/ha-image-repodigests.json" >/dev/null
           jq -e 'length > 0' "${stage_root}/evidence/browser-image-repodigests.json" >/dev/null
 
+      - name: Prepare owner-only writable Home Assistant configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          config_root="${stage_root}/config"
+          runtime_identity="$(docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --entrypoint python3 \
+            "${HA_IMAGE}" -c 'import json, os; print(json.dumps({"uid": os.getuid(), "gid": os.getgid()}))')"
+          ha_uid="$(jq -er '.uid | numbers' <<<"${runtime_identity}")"
+          ha_gid="$(jq -er '.gid | numbers' <<<"${runtime_identity}")"
+          printf '%s\n' "${runtime_identity}" > "${stage_root}/evidence/ha-runtime-identity.json"
+
+          browser_identity="$(docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --entrypoint node \
+            "${BROWSER_IMAGE}" -e 'console.log(JSON.stringify({uid: process.getuid(), gid: process.getgid()}))')"
+          browser_uid="$(jq -er '.uid | numbers' <<<"${browser_identity}")"
+          browser_gid="$(jq -er '.gid | numbers' <<<"${browser_identity}")"
+          printf '%s\n' "${browser_identity}" > "${stage_root}/evidence/browser-runtime-identity.json"
+
+          sudo chown -R "${ha_uid}:${ha_gid}" "${config_root}"
+          sudo find "${config_root}" -type d -exec chmod 0755 {} +
+          sudo find "${config_root}" -type f -exec chmod 0644 {} +
+          test -z "$(sudo find "${config_root}" \( ! -uid "${ha_uid}" -o ! -gid "${ha_gid}" \) -print -quit)"
+          test -z "$(sudo find "${config_root}" -perm /022 -print -quit)"
+
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${config_root}:/config:rw" \
+            --entrypoint python3 \
+            "${HA_IMAGE}" -c 'from pathlib import Path; deps = Path("/config/deps"); deps.mkdir(exist_ok=True); probe = deps / ".astv353-owner-write-test"; probe.write_text("ok\n"); probe.unlink()'
+          sudo find "${config_root}" -printf '%m %U:%G %p\n' | sort > "${stage_root}/evidence/config-permissions.txt"
+
+          browser_evidence="${stage_root}/browser-evidence"
+          mkdir "${browser_evidence}"
+          sudo chown "${browser_uid}:${browser_gid}" "${browser_evidence}"
+          sudo chmod 0755 "${browser_evidence}"
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${browser_evidence}:/evidence:rw" \
+            --entrypoint node \
+            "${BROWSER_IMAGE}" -e 'const fs = require("fs"); const path = "/evidence/.astv353-owner-write-test"; fs.writeFileSync(path, "ok\n"); fs.unlinkSync(path)'
+
       - name: Start internal-only Home Assistant stage
         shell: bash
         run: |
@@ -180,6 +233,11 @@ jobs:
           set -euo pipefail
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
           docker exec "${STAGE_CONTAINER}" python3 /config/staging/prepare_stage.py
+          ha_uid="$(jq -er '.uid | numbers' "${stage_root}/evidence/ha-runtime-identity.json")"
+          ha_gid="$(jq -er '.gid | numbers' "${stage_root}/evidence/ha-runtime-identity.json")"
+          test -z "$(sudo find "${stage_root}/config" \( ! -uid "${ha_uid}" -o ! -gid "${ha_gid}" \) -print -quit)"
+          test -z "$(sudo find "${stage_root}/config" -perm /022 -print -quit)"
+          sudo find "${stage_root}/config" -printf '%m %U:%G %p\n' | sort > "${stage_root}/evidence/config-permissions-after-bootstrap.txt"
           sudo cp "${stage_root}/config/staging/stage-evidence.json" "${stage_root}/evidence/stage-evidence.json"
 
       - name: Run desktop, mobile, and permission browser checks
@@ -193,7 +251,7 @@ jobs:
             --cap-drop ALL \
             --security-opt no-new-privileges \
             --volume "${stage_root}/config:/stage:ro" \
-            --volume "${stage_root}/evidence:/evidence:rw" \
+            --volume "${stage_root}/browser-evidence:/evidence:rw" \
             --volume "${PWD}/06_Validation/Staging/ASTV-353/browser:/work:ro" \
             --volume "${stage_root}/packages:/packages:ro" \
             --env ASTV353_MODE="${EFFECTIVE_MODE}" \
@@ -201,6 +259,8 @@ jobs:
             --entrypoint bash \
             "${BROWSER_IMAGE}" -lc \
             'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config playwright.config.mjs browser.spec.mjs'
+          sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
+          sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
 
       - name: Execute separately authorised synthetic lifecycle
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'controlled_lifecycle'
@@ -233,7 +293,10 @@ jobs:
         run: |
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
           if test -n "${stage_root}" && test -d "${stage_root}"; then
-            docker logs "${STAGE_CONTAINER}" > "${stage_root}/evidence/home-assistant.log" 2>&1 || true
+            log_path="${RUNNER_TEMP}/astv353-home-assistant.log"
+            docker logs "${STAGE_CONTAINER}" > "${log_path}" 2>&1 || true
+            sudo cp "${log_path}" "${stage_root}/evidence/home-assistant.log" || true
+            sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/" || true
             for name in stage-evidence.json lifecycle-evidence.json; do
               sudo test -f "${stage_root}/config/staging/${name}" && sudo cp "${stage_root}/config/staging/${name}" "${stage_root}/evidence/${name}" || true
             done

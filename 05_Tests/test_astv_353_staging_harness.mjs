@@ -7,6 +7,7 @@ const catalogue = fs.readFileSync("06_Validation/Staging/ASTV-353/config/astv/as
 const mapping = fs.readFileSync("06_Validation/Staging/ASTV-353/config/AdvNFC/advnfc_tag_mapping.yaml", "utf8");
 const browser = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/browser.spec.mjs", "utf8");
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
+const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/prepare_stage.py", "utf8");
 
 test("workflow has a narrow read-only PR route, a human-gated manual route, and unconditional disposal", () => {
   assert.match(workflow, /workflow_dispatch:/);
@@ -34,6 +35,29 @@ test("accepted product and platform identities are explicit and fail closed", ()
   assert.match(workflow, /playwright:v1\.56\.1-noble/);
   assert.match(workflow, /sha256sum/);
   assert.match(workflow, /RepoDigests/);
+});
+
+test("runtime ownership is derived from the pinned HA image and never made group/world writable", () => {
+  const ownership = workflow.indexOf("Prepare owner-only writable Home Assistant configuration");
+  const startup = workflow.indexOf("Start internal-only Home Assistant stage");
+  assert.ok(ownership > 0 && ownership < startup);
+  assert.match(workflow, /os\.getuid\(\).*os\.getgid\(\)/);
+  assert.match(workflow, /chown -R "\$\{ha_uid\}:\$\{ha_gid\}"/);
+  assert.match(workflow, /find "\$\{config_root\}" -perm \/022/);
+  assert.match(workflow, /\/config\/deps/);
+  assert.match(workflow, /browser-runtime-identity\.json/);
+  assert.match(workflow, /browser-evidence:\/evidence:rw/);
+  assert.match(workflow, /browser-evidence\/\." "\$\{stage_root\}\/evidence\//);
+  assert.doesNotMatch(workflow, /chmod\s+(?:-R\s+)?0?777/);
+  assert.doesNotMatch(workflow, /--privileged/);
+});
+
+test("bootstrap completes HA onboarding before config-entry and browser preparation", () => {
+  for (const endpoint of ["core_config", "analytics", "integration"]) {
+    assert.match(prepareStage, new RegExp(`/api/onboarding/${endpoint}`));
+  }
+  assert.match(prepareStage, /all\(step\.get\("done"\) is True for step in steps\)/);
+  assert.ok(prepareStage.indexOf("onboarding = complete_onboarding(owner_token)") < prepareStage.indexOf("asyncio.run(prepare"));
 });
 
 test("fixtures are synthetic, inert, and preserve the read-only product boundary", () => {

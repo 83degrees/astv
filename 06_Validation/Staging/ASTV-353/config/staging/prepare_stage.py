@@ -23,11 +23,14 @@ EXPECTED_INTENTS = [
 ]
 
 
-def post_json(path: str, payload: dict[str, object]) -> dict:
+def post_json(path: str, payload: dict[str, object], token: str | None = None) -> dict:
+    headers = {"Content-Type": "application/json"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
     request = urllib.request.Request(
         BASE_URL + path,
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=15) as response:
@@ -51,6 +54,20 @@ def create_owner_token() -> str:
     request = urllib.request.Request(BASE_URL + "/auth/token", data=payload, method="POST")
     with urllib.request.urlopen(request, timeout=15) as response:
         return json.load(response)["access_token"]
+
+
+def complete_onboarding(token: str) -> list[dict[str, object]]:
+    post_json("/api/onboarding/core_config", {}, token)
+    post_json("/api/onboarding/analytics", {}, token)
+    post_json(
+        "/api/onboarding/integration",
+        {"client_id": CLIENT_ID, "redirect_uri": CLIENT_ID},
+        token,
+    )
+    with urllib.request.urlopen(BASE_URL + "/api/onboarding", timeout=15) as response:
+        steps = json.load(response)
+    assert steps and all(step.get("done") is True for step in steps), steps
+    return steps
 
 
 async def command(socket, command_id: int, *, allow_error: bool = False, **payload):
@@ -81,7 +98,7 @@ def digest(path: str) -> str:
     return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
-async def prepare(token: str) -> dict[str, object]:
+async def prepare(token: str, onboarding: list[dict[str, object]]) -> dict[str, object]:
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect("ws://127.0.0.1:8123/api/websocket") as socket:
             assert (await socket.receive_json())["type"] == "auth_required"
@@ -153,6 +170,7 @@ async def prepare(token: str) -> dict[str, object]:
             "mapping_sha256": digest("/config/AdvNFC/advnfc_tag_mapping.yaml"),
         },
         "authentication": {"admin_created": True, "non_admin_created": True, "secrets_retained": False},
+        "onboarding": onboarding,
     }
     Path("/config/staging/stage-evidence.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
     Path("/config/staging/browser-session.json").write_text(
@@ -162,4 +180,6 @@ async def prepare(token: str) -> dict[str, object]:
 
 
 if __name__ == "__main__":
-    asyncio.run(prepare(create_owner_token()))
+    owner_token = create_owner_token()
+    onboarding = complete_onboarding(owner_token)
+    asyncio.run(prepare(owner_token, onboarding))

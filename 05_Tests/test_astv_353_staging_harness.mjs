@@ -8,10 +8,17 @@ const mapping = fs.readFileSync("06_Validation/Staging/ASTV-353/config/AdvNFC/ad
 const browser = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/browser.spec.mjs", "utf8");
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
 
-test("workflow is manual, human-gated, internally networked, and unconditionally disposed", () => {
+test("workflow has a narrow read-only PR route, a human-gated manual route, and unconditional disposal", () => {
   assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /\n\s+(push|pull_request|schedule):/);
+  assert.match(workflow, /pull_request:/);
+  assert.doesNotMatch(workflow, /pull_request_target:/);
+  assert.doesNotMatch(workflow, /\n\s+(push|schedule):/);
   assert.match(workflow, /ASTV-353-G2/);
+  assert.match(workflow, /github\.event\.pull_request\.number == 128/);
+  assert.match(workflow, /github\.event\.pull_request\.base\.ref == 'beta'/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.match(workflow, /EFFECTIVE_MODE:.*'read_only'/);
+  assert.match(workflow, /github\.event_name == 'workflow_dispatch' && inputs\.mode == 'controlled_lifecycle'/);
   assert.match(workflow, /docker network create --internal/);
   assert.doesNotMatch(workflow, /^\s+(--publish|-p\s)/m);
   assert.match(workflow, /if: always\(\)/);

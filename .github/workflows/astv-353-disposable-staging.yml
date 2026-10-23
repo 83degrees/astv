@@ -1,6 +1,11 @@
 name: ASTV-353 disposable administration UI staging
 
 on:
+  pull_request:
+    branches:
+      - beta
+    types:
+      - synchronize
   workflow_dispatch:
     inputs:
       mode:
@@ -21,6 +26,13 @@ permissions:
 
 jobs:
   verify-private-stage:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.number == 128 &&
+       github.event.pull_request.base.ref == 'beta' &&
+       github.event.pull_request.head.ref == 'gsheldon/astv-353-validate-astv-administration-ui-end-to-end' &&
+       github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && inputs.human_gate == 'ASTV-353-G2')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -34,18 +46,47 @@ jobs:
       STAGE_CONTAINER: astv353-home-assistant
       BROWSER_CONTAINER: astv353-browser
       STAGE_NETWORK: astv353-private
+      EFFECTIVE_MODE: ${{ github.event_name == 'pull_request' && 'read_only' || inputs.mode }}
+      EXPECTED_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      HUMAN_GATE: ${{ inputs.human_gate }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
 
     steps:
-      - name: Enforce the next human gate
+      - name: Enforce the authorised event, ref, and mode
         shell: bash
         run: |
           set -euo pipefail
-          test "${{ inputs.human_gate }}" = "ASTV-353-G2"
+          case "${GITHUB_EVENT_NAME}" in
+            pull_request)
+              test "${PR_NUMBER}" = "128"
+              test "${PR_BASE_REF}" = "beta"
+              test "${PR_HEAD_REF}" = "gsheldon/astv-353-validate-astv-administration-ui-end-to-end"
+              test "${PR_HEAD_REPOSITORY}" = "${GITHUB_REPOSITORY}"
+              test "${EFFECTIVE_MODE}" = "read_only"
+              ;;
+            workflow_dispatch)
+              test "${HUMAN_GATE}" = "ASTV-353-G2"
+              test "${EFFECTIVE_MODE}" = "read_only" -o "${EFFECTIVE_MODE}" = "controlled_lifecycle"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
 
       - name: Check out governed ASTV candidate and tags
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - name: Verify exact checked-out candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
 
       - name: Check out immutable AdvNFC provider
         uses: actions/checkout@v4
@@ -80,6 +121,14 @@ jobs:
           npm pack "playwright@${PLAYWRIGHT_VERSION}" --pack-destination "${stage_root}/packages"
           npm pack "@playwright/test@${PLAYWRIGHT_VERSION}" --pack-destination "${stage_root}/packages"
           sha256sum "${stage_root}"/packages/*.tgz > "${evidence_root}/browser-packages.sha256"
+          jq -n \
+            --arg event "${GITHUB_EVENT_NAME}" \
+            --arg mode "${EFFECTIVE_MODE}" \
+            --arg head_sha "${EXPECTED_HEAD_SHA}" \
+            --arg workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            '{event:$event,mode:$mode,head_sha:$head_sha,workflow_ref:$workflow_ref,run_id:$run_id}' \
+            > "${evidence_root}/workflow-invocation.json"
           printf '%s\n' "${stage_root}" > "${RUNNER_TEMP}/astv353-stage-root.txt"
 
       - name: Pull and record exact runtime image identities
@@ -147,14 +196,14 @@ jobs:
             --volume "${stage_root}/evidence:/evidence:rw" \
             --volume "${PWD}/06_Validation/Staging/ASTV-353/browser:/work:ro" \
             --volume "${stage_root}/packages:/packages:ro" \
-            --env ASTV353_MODE="${{ inputs.mode }}" \
+            --env ASTV353_MODE="${EFFECTIVE_MODE}" \
             --env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
             --entrypoint bash \
             "${BROWSER_IMAGE}" -lc \
             'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config playwright.config.mjs browser.spec.mjs'
 
       - name: Execute separately authorised synthetic lifecycle
-        if: inputs.mode == 'controlled_lifecycle'
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'controlled_lifecycle'
         shell: bash
         run: |
           set -euo pipefail

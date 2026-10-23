@@ -1,9 +1,11 @@
 # ASTV-353 Disposable Administration UI Stage
 
 This directory defines a private, one-shot Home Assistant stage for the
-ASTV administration UI acceptance matrix. It is deliberately manual-dispatch
-only and requires the literal gate value `ASTV-353-G2`; this G1 change does not
-authorize dispatching it.
+ASTV administration UI acceptance matrix. Manual dispatch requires the literal
+gate value `ASTV-353-G2`. A separately approved, same-repository PR route is
+restricted to PR #128 targeting `beta`, checks out the exact PR head, forces
+`read_only`, and cannot enter the controlled lifecycle. It does not use
+`pull_request_target`, repository secrets, or write permissions.
 
 The workflow assembles the stage from immutable product identities:
 
@@ -23,7 +25,8 @@ controls, desktop/mobile rendering, reverse AdvNFC references, and unchanged
 fixture hashes. `controlled_lifecycle` additionally covers Create/Save versus
 Activate, edit, delete/reference protection, stale revisions, validation and
 MediaCat activation errors, explicit activation, and restoration of the
-staging fixture. A fresh human gate is required before either mode is run.
+staging fixture. The PR route can run only `read_only`; controlled lifecycle
+requires a fresh, separately authorised manual gate.
 
 Every run captures source trees and hashes, image digests, container/network
 isolation, structured API outcomes, desktop/mobile screenshots, logs, fixture

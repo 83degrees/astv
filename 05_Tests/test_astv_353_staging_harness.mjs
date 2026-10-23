@@ -7,6 +7,7 @@ const workflow = fs.readFileSync(".github/workflows/astv-353-disposable-staging.
 const catalogue = fs.readFileSync("06_Validation/Staging/ASTV-353/config/astv/astv_intent_catalogue.yaml", "utf8");
 const mapping = fs.readFileSync("06_Validation/Staging/ASTV-353/config/AdvNFC/advnfc_tag_mapping.yaml", "utf8");
 const browser = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/browser.spec.mjs", "utf8");
+const playwrightConfig = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/playwright.config.mjs", "utf8");
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
 const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/prepare_stage.py", "utf8");
 
@@ -143,6 +144,16 @@ test("ordinary PR updates cannot start the stage and the labeled route checks ou
   assert.match(workflow, /PR_ACTION: \$\{\{ github\.event\.action \}\}/);
   assert.match(workflow, /test "\$\{PR_ACTION\}" = "labeled"/);
   assert.match(workflow, /test "\$\{EFFECTIVE_MODE\}" = "read_only"/);
+});
+
+test("Playwright resolves the copied test beside its offline-installed packages", () => {
+  const install = workflow.indexOf("npm install --offline");
+  const copy = workflow.indexOf("cp /work/*.mjs .");
+  const execute = workflow.indexOf("npx playwright test --config ./playwright.config.mjs ./browser.spec.mjs");
+  assert.ok(install > 0 && install < copy && copy < execute);
+  assert.match(playwrightConfig, /testDir: "\."/);
+  assert.doesNotMatch(playwrightConfig, /testDir: "\/work"/);
+  assert.doesNotMatch(workflow, /playwright test[^\n']*\/work\/browser\.spec\.mjs/);
 });
 
 test("browser and lifecycle suites cover the approved acceptance matrix", () => {

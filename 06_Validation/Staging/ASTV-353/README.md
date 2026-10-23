@@ -37,6 +37,9 @@ config-entry bootstrap findings from the held PR. Browser
 output uses a separate directory owned by the pinned browser image's observed
 UID:GID; its contents are copied into runner-owned evidence during both the
 normal path and unconditional teardown, without a world-writable handoff.
+The Playwright packages and copied test/config modules execute together from
+`/tmp/pw`, so ESM resolution finds the offline-installed local
+`@playwright/test` package rather than resolving the test from `/work`.
 
 Pinned fixture SHA-256 identities are checked offline:
 

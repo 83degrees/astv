@@ -238,7 +238,7 @@ jobs:
             --env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
             --entrypoint bash \
             "${BROWSER_IMAGE}" -lc \
-            'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config playwright.config.mjs browser.spec.mjs'
+            'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config ./playwright.config.mjs ./browser.spec.mjs'
           sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
           sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
 

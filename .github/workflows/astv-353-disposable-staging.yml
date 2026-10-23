@@ -15,7 +15,8 @@ jobs:
     if: >-
       github.event_name == 'pull_request' &&
       github.event.action == 'labeled' &&
-      github.event.label.name == 'ASTV-353-STEP2-READ-ONLY' &&
+      (github.event.label.name == 'ASTV-353-STEP2-READ-ONLY' ||
+       github.event.label.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE') &&
       github.event.pull_request.number == 130 &&
       github.event.pull_request.base.ref == 'beta' &&
       github.event.pull_request.head.ref == 'gsheldon/astv-353-stage2-step1-offline-preparation' &&
@@ -33,7 +34,7 @@ jobs:
       STAGE_CONTAINER: astv353-home-assistant
       BROWSER_CONTAINER: astv353-browser
       STAGE_NETWORK: astv353-private
-      EFFECTIVE_MODE: read_only
+      EFFECTIVE_MODE: ${{ github.event.label.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE' && 'controlled_lifecycle' || 'read_only' }}
       EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -49,12 +50,21 @@ jobs:
           set -euo pipefail
           test "${GITHUB_EVENT_NAME}" = "pull_request"
           test "${PR_ACTION}" = "labeled"
-          test "${PR_LABEL}" = "ASTV-353-STEP2-READ-ONLY"
           test "${PR_NUMBER}" = "130"
           test "${PR_BASE_REF}" = "beta"
           test "${PR_HEAD_REF}" = "gsheldon/astv-353-stage2-step1-offline-preparation"
           test "${PR_HEAD_REPOSITORY}" = "${GITHUB_REPOSITORY}"
-          test "${EFFECTIVE_MODE}" = "read_only"
+          case "${PR_LABEL}" in
+            ASTV-353-STEP2-READ-ONLY)
+              test "${EFFECTIVE_MODE}" = "read_only"
+              ;;
+            ASTV-353-STAGE3-CONTROLLED-LIFECYCLE)
+              test "${EFFECTIVE_MODE}" = "controlled_lifecycle"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
 
       - name: Check out governed ASTV candidate and tags
         uses: actions/checkout@v4
@@ -104,10 +114,11 @@ jobs:
           jq -n \
             --arg event "${GITHUB_EVENT_NAME}" \
             --arg mode "${EFFECTIVE_MODE}" \
+            --arg label "${PR_LABEL}" \
             --arg head_sha "${EXPECTED_HEAD_SHA}" \
             --arg workflow_ref "${GITHUB_WORKFLOW_REF}" \
             --arg run_id "${GITHUB_RUN_ID}" \
-            '{event:$event,mode:$mode,head_sha:$head_sha,workflow_ref:$workflow_ref,run_id:$run_id}' \
+            '{event:$event,label:$label,mode:$mode,head_sha:$head_sha,workflow_ref:$workflow_ref,run_id:$run_id}' \
             > "${evidence_root}/workflow-invocation.json"
           printf '%s\n' "${stage_root}" > "${RUNNER_TEMP}/astv353-stage-root.txt"
 
@@ -248,6 +259,58 @@ jobs:
           printf '%s\n' passed > "${stage_root}/evidence/browser-execution.status"
           sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
           sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
+
+      - name: Run controlled synthetic lifecycle and prove restoration
+        if: env.EFFECTIVE_MODE == 'controlled_lifecycle'
+        shell: bash
+        run: |
+          set -u
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          lifecycle_rc=0
+          restart_rc=0
+          restoration_rc=0
+          evidence_rc=0
+          printf '%s\n' started > "${stage_root}/evidence/lifecycle-execution.status"
+
+          docker exec "${STAGE_CONTAINER}" python3 /config/staging/lifecycle.py || lifecycle_rc=$?
+          docker restart "${STAGE_CONTAINER}" >/dev/null || restart_rc=$?
+          if test "${restart_rc}" -eq 0; then
+            ready=false
+            for attempt in $(seq 1 120); do
+              if docker exec "${STAGE_CONTAINER}" python3 -c "import socket; s=socket.create_connection(('127.0.0.1',8123),2); s.close()" 2>/dev/null; then
+                ready=true
+                break
+              fi
+              docker inspect "${STAGE_CONTAINER}" --format '{{.State.Running}}' 2>/dev/null | grep -qx true || break
+              sleep 2
+            done
+            test "${ready}" = true || restart_rc=1
+          fi
+          if test "${restart_rc}" -eq 0; then
+            docker exec "${STAGE_CONTAINER}" python3 /config/staging/verify_restoration.py || restoration_rc=$?
+          else
+            restoration_rc=1
+          fi
+
+          sudo test -f "${stage_root}/config/staging/lifecycle-evidence.json" \
+            && sudo cp "${stage_root}/config/staging/lifecycle-evidence.json" "${stage_root}/evidence/lifecycle-evidence.json" \
+            || evidence_rc=1
+          jq -n \
+            --argjson lifecycle_rc "${lifecycle_rc}" \
+            --argjson restart_rc "${restart_rc}" \
+            --argjson restoration_rc "${restoration_rc}" \
+            --argjson evidence_rc "${evidence_rc}" \
+            '{lifecycle_rc:$lifecycle_rc,restart_rc:$restart_rc,restoration_rc:$restoration_rc,evidence_rc:$evidence_rc}' \
+            > "${stage_root}/evidence/lifecycle-run-summary.json"
+          if test "${lifecycle_rc}" -eq 0 \
+            && test "${restart_rc}" -eq 0 \
+            && test "${restoration_rc}" -eq 0 \
+            && test "${evidence_rc}" -eq 0; then
+            printf '%s\n' passed > "${stage_root}/evidence/lifecycle-execution.status"
+            exit 0
+          fi
+          printf '%s\n' failed > "${stage_root}/evidence/lifecycle-execution.status"
+          exit 1
 
       - name: Capture fixture integrity and segregation evidence
         if: always()

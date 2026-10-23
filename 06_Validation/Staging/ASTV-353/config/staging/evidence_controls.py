@@ -15,6 +15,7 @@ FORBIDDEN_STAGE_CONTENT = re.compile(
     rb"ha-starburst|assistive/nfc|mqtt:|password:|api_key:|bearer ", re.IGNORECASE
 )
 PRIVATE_FILENAMES = {"browser-session.json", "private-artifact-secrets.json"}
+VALID_MODES = {"read_only", "controlled_lifecycle"}
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
@@ -37,6 +38,57 @@ def _baseline_hash(baseline: Path, suffix: str) -> str:
     return matches[0]
 
 
+def _lifecycle_evidence(stage_root: Path) -> tuple[str, str, list[str]]:
+    evidence = stage_root / "evidence"
+    config = stage_root / "config"
+    errors: list[str] = []
+    try:
+        invocation = json.loads((evidence / "workflow-invocation.json").read_text())
+        if not isinstance(invocation, dict):
+            raise TypeError("invocation evidence must be an object")
+        mode = invocation.get("mode")
+        if mode not in VALID_MODES:
+            raise ValueError("invalid mode")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        return "failed", "failed", ["workflow invocation mode is missing or invalid"]
+
+    marker = evidence / "lifecycle-execution.status"
+    lifecycle_file = config / "staging" / "lifecycle-evidence.json"
+    if mode == "read_only":
+        if marker.exists() or lifecycle_file.exists():
+            errors.append("read-only route unexpectedly produced lifecycle evidence")
+            return "failed", "failed", errors
+        return "not_run", "not_applicable_read_only", errors
+
+    try:
+        marker_status = marker.read_text().strip()
+        lifecycle = json.loads(lifecycle_file.read_text())
+        if not isinstance(lifecycle, dict):
+            raise TypeError("lifecycle evidence must be an object")
+        restoration = lifecycle.get("restoration")
+        if marker_status != "passed":
+            errors.append("controlled lifecycle execution did not pass")
+        if lifecycle.get("outcome") != "pass":
+            errors.append("controlled lifecycle mutation sequence did not pass")
+        if lifecycle.get("baseline_bytes_restored") is not True or lifecycle.get("draft_removed") is not True:
+            errors.append("pre-restart fixture restoration is incomplete")
+        if not isinstance(restoration, dict) or restoration.get("status") != "passed":
+            errors.append("post-restart restoration verification did not pass")
+        elif not all(
+            restoration.get(field) is True
+            for field in (
+                "catalogue_bytes_restored",
+                "draft_removed",
+                "active_revision_restored",
+                "active_fixture_restored",
+            )
+        ):
+            errors.append("post-restart restoration proof is incomplete")
+    except (OSError, ValueError, TypeError, json.JSONDecodeError):
+        errors.append("controlled lifecycle evidence is missing, inaccessible, or invalid")
+    return ("passed", "passed", []) if not errors else ("failed", "failed", errors)
+
+
 def post_browser(stage_root: Path) -> int:
     evidence = stage_root / "evidence"
     config = stage_root / "config"
@@ -45,6 +97,8 @@ def post_browser(stage_root: Path) -> int:
     fixture_integrity = "not_run"
     segregation = "not_run"
     stage_preparation = "not_run"
+    lifecycle_validation = "not_run"
+    restoration = "not_run"
 
     browser_marker = evidence / "browser-execution.status"
     try:
@@ -109,11 +163,15 @@ def post_browser(stage_root: Path) -> int:
             errors.append("required staging configuration is missing, inaccessible, unsafe, or cannot be scanned")
             segregation = "failed"
 
+        lifecycle_validation, restoration, lifecycle_errors = _lifecycle_evidence(stage_root)
+        errors.extend(lifecycle_errors)
+
     result = {
         "browser_checks": browser_status,
         "errors": errors,
         "fixture_integrity": fixture_integrity,
-        "restoration": "not_applicable_read_only",
+        "lifecycle_validation": lifecycle_validation,
+        "restoration": restoration,
         "segregation": segregation,
         "stage_preparation": stage_preparation,
     }

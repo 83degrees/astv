@@ -17,6 +17,7 @@ const mapping = fs.readFileSync("06_Validation/Staging/ASTV-353/config/AdvNFC/ad
 const browser = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/browser.spec.mjs", "utf8");
 const playwrightConfig = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/playwright.config.mjs", "utf8");
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
+const restorationVerifier = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/verify_restoration.py", "utf8");
 const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/prepare_stage.py", "utf8");
 const sanitizer = "06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py";
 const evidenceControls = "06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py";
@@ -27,7 +28,7 @@ const sha256 = (path) => crypto.createHash("sha256").update(fs.readFileSync(path
 const pythonCommand = () => process.env.ASTV353_PYTHON || (process.platform === "win32" ? "py" : "python3");
 const runPython = (script, args) => spawnSync(pythonCommand(), [script, ...args], { encoding: "utf8" });
 
-function createPreparedStage(root) {
+function createPreparedStage(root, mode = "read_only") {
   const evidence = path.join(root, "evidence");
   const config = path.join(root, "config");
   const catalogue = path.join(config, "astv", "astv_intent_catalogue.yaml");
@@ -44,6 +45,7 @@ function createPreparedStage(root) {
   fs.writeFileSync(path.join(config, "staging", "private-artifact-secrets.json"), "{}\n");
   fs.writeFileSync(path.join(evidence, "stage-prepared.status"), "prepared\n");
   fs.writeFileSync(path.join(evidence, "browser-execution.status"), "passed\n");
+  fs.writeFileSync(path.join(evidence, "workflow-invocation.json"), JSON.stringify({ mode }));
   fs.writeFileSync(
     path.join(evidence, "config-before.sha256"),
     `${sha256(catalogue)}  ${catalogue.replaceAll("\\", "/")}\n${sha256(mapping)}  ${mapping.replaceAll("\\", "/")}\n`,
@@ -51,7 +53,7 @@ function createPreparedStage(root) {
   return { catalogue, config, evidence, mapping };
 }
 
-test("workflow exposes only the exact PR-labeled read-only route and always disposes resources", () => {
+test("workflow exposes distinct exact-PR Stage 2 and Stage 3 label routes and always disposes resources", () => {
   assert.match(workflow, /pull_request:/);
   assert.match(workflow, /types:\s*\n\s*- labeled/);
   assert.doesNotMatch(workflow, /workflow_dispatch:/);
@@ -60,13 +62,15 @@ test("workflow exposes only the exact PR-labeled read-only route and always disp
   assert.match(workflow, /github\.event_name == 'pull_request'/);
   assert.match(workflow, /github\.event\.action == 'labeled'/);
   assert.match(workflow, /github\.event\.label\.name == 'ASTV-353-STEP2-READ-ONLY'/);
+  assert.match(workflow, /github\.event\.label\.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE'/);
   assert.match(workflow, /github\.event\.pull_request\.number == 130/);
   assert.match(workflow, /github\.event\.pull_request\.base\.ref == 'beta'/);
   assert.match(workflow, /github\.event\.pull_request\.head\.ref == 'gsheldon\/astv-353-stage2-step1-offline-preparation'/);
   assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
-  assert.match(workflow, /EFFECTIVE_MODE: read_only/);
+  assert.match(workflow, /EFFECTIVE_MODE: \$\{\{ github\.event\.label\.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE'/);
   assert.match(workflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
-  assert.doesNotMatch(workflow, /controlled_lifecycle/);
+  assert.match(workflow, /ASTV-353-STEP2-READ-ONLY\)\s*\n\s*test "\$\{EFFECTIVE_MODE\}" = "read_only"/);
+  assert.match(workflow, /ASTV-353-STAGE3-CONTROLLED-LIFECYCLE\)\s*\n\s*test "\$\{EFFECTIVE_MODE\}" = "controlled_lifecycle"/);
   assert.doesNotMatch(workflow, /\$\{\{\s*secrets\./);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /docker network create --internal/);
@@ -184,7 +188,9 @@ test("ordinary PR updates cannot start the stage and the labeled route checks ou
   assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$\{EXPECTED_HEAD_SHA\}"/);
   assert.match(workflow, /PR_ACTION: \$\{\{ github\.event\.action \}\}/);
   assert.match(workflow, /test "\$\{PR_ACTION\}" = "labeled"/);
-  assert.match(workflow, /test "\$\{EFFECTIVE_MODE\}" = "read_only"/);
+  assert.doesNotMatch(workflow, /synchronize|opened|reopened|workflow_dispatch|pull_request_target/);
+  assert.match(workflow, /case "\$\{PR_LABEL\}" in/);
+  assert.match(workflow, /\*\)\s*\n\s*exit 1/);
 });
 
 test("Playwright resolves the copied test beside its offline-installed packages", () => {
@@ -204,6 +210,14 @@ test("browser and lifecycle suites cover the approved acceptance matrix", () => 
   for (const required of ["create_save", "stale_revision", "validation_error", "mediacat_activation_error", "explicit_activate", "edit_save", "delete_save", "baseline_bytes_restored"]) {
     assert.match(lifecycle, new RegExp(required));
   }
+  assert.match(browser, /known AdvNFC reference prevents deletion in the UI/);
+  assert.match(workflow, /Run controlled synthetic lifecycle and prove restoration/);
+  assert.match(workflow, /docker restart "\$\{STAGE_CONTAINER\}"/);
+  assert.match(workflow, /verify_restoration\.py/);
+  assert.match(lifecycle, /primary_failure/);
+  assert.match(lifecycle, /DRAFT\.unlink\(missing_ok=True\)/);
+  assert.match(restorationVerifier, /active_revision_mismatch/);
+  assert.match(restorationVerifier, /active_fixture_mismatch/);
 });
 
 test("login waits for authenticated HA state and explicitly routes to the panel", () => {
@@ -320,8 +334,49 @@ test("failure-path evidence uses explicit states and teardown remains unconditio
   assert.match(evidenceControlsSource, /post-browser-validation\.json/);
   assert.match(evidenceControlsSource, /fixture_integrity/);
   assert.match(evidenceControlsSource, /segregation/);
+  assert.match(evidenceControlsSource, /lifecycle_validation/);
   assert.match(workflow, /docker rm --force/);
   assert.match(workflow, /docker network rm/);
+});
+
+test("Stage 3 evidence fails closed for mutation, restoration, and missing-evidence paths", () => {
+  const validLifecycle = {
+    outcome: "pass",
+    baseline_bytes_restored: true,
+    draft_removed: true,
+    restoration: {
+      status: "passed",
+      catalogue_bytes_restored: true,
+      draft_removed: true,
+      active_revision_restored: true,
+      active_fixture_restored: true,
+    },
+  };
+  const cases = [
+    ["passed", () => {}, 0],
+    ["mutation-exception", (value) => { value.outcome = "failed"; value.primary_failure = { phase: "edit_save", type: "RuntimeError" }; }, 1],
+    ["restoration-failure", (value) => { value.restoration.status = "failed"; value.restoration.active_revision_restored = false; }, 1],
+    ["missing-evidence", null, 1],
+  ];
+  for (const [name, mutate, expectedStatus] of cases) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), `astv353-stage3-${name}-`));
+    try {
+      const { config, evidence } = createPreparedStage(root, "controlled_lifecycle");
+      fs.writeFileSync(path.join(evidence, "lifecycle-execution.status"), "passed\n");
+      if (mutate !== null) {
+        const lifecycleEvidence = structuredClone(validLifecycle);
+        mutate(lifecycleEvidence);
+        fs.writeFileSync(path.join(config, "staging", "lifecycle-evidence.json"), JSON.stringify(lifecycleEvidence));
+      }
+      const result = runPython(evidenceControls, ["post-browser", root]);
+      assert.equal(result.status, expectedStatus, `${name}: ${result.stderr}`);
+      const report = JSON.parse(fs.readFileSync(path.join(evidence, "post-browser-validation.json"), "utf8"));
+      assert.equal(report.lifecycle_validation, expectedStatus === 0 ? "passed" : "failed");
+      assert.equal(report.restoration, expectedStatus === 0 ? "passed" : "failed");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  }
 });
 
 test("prepared-stage evidence fails closed for missing baseline, fixture, or configuration", () => {

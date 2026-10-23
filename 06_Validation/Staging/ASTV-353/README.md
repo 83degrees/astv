@@ -5,11 +5,13 @@ ASTV administration UI acceptance matrix. Because the workflow does not exist
 on the default branch, it uses a GitHub-supported `pull_request` labeled-event
 route rather than `workflow_dispatch`. The job is guarded to PR #130, base
 `beta`, the exact same-repository head branch, and the label
-`ASTV-353-STEP2-READ-ONLY`. Ordinary PR updates cannot start the disposable
-environment. Applying that label is reserved for a separate human-approved
-Step 2 gate. The route checks out and verifies the immutable PR head and always
-sets `read_only`; there is no workflow path to `controlled_lifecycle`. It does
-not use `pull_request_target`, repository secrets, or write permissions.
+`ASTV-353-STEP2-READ-ONLY`, or the separately guarded
+`ASTV-353-STAGE3-CONTROLLED-LIFECYCLE`. Ordinary PR updates cannot start the
+disposable environment. Applying either label is reserved for a separate,
+specific human approval. Each route checks out and verifies the immutable PR
+head; the Step 2 label maps only to `read_only` and the Stage 3 label maps only
+to `controlled_lifecycle`. Unknown labels fail closed. Neither route uses
+`pull_request_target`, repository secrets, or write permissions.
 
 The workflow assembles the stage from immutable product identities:
 
@@ -66,9 +68,14 @@ controls, desktop/mobile rendering, reverse AdvNFC references, and unchanged
 fixture hashes. `controlled_lifecycle` additionally covers Create/Save versus
 Activate, edit, delete/reference protection, stale revisions, validation and
 MediaCat activation errors, explicit activation, and restoration of the
-staging fixture. Controlled lifecycle requires a future, separately reviewed
-workflow correction and fresh human authorisation; it cannot be selected in
-the present workflow.
+staging fixture. The controlled lifecycle route remains dormant until its
+distinct Stage 3 label is deliberately applied under future human
+authorisation. After any lifecycle attempt, including a failed mutation, the
+runner restores the original catalogue bytes, removes the draft, restarts
+disposable Home Assistant, and independently verifies the original hash,
+absent draft, active revision, and three-record in-memory fixture before
+disposal. Mutation, restart, restoration, and evidence failures are recorded
+separately; incomplete restoration cannot pass.
 
 Every run captures source trees and hashes, image digests, container/network
 isolation, structured API outcomes, desktop/mobile screenshots, logs, fixture

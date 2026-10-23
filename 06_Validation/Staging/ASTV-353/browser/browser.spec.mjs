@@ -54,6 +54,35 @@ async function openPanel(page) {
   await expect(page.getByRole("heading", { name: "Intent Catalogue", level: 1 })).toBeVisible({ timeout: boundedTimeout });
 }
 
+async function readCatalogueState(page) {
+  return page.evaluate(async () => {
+    const hass = document.querySelector("home-assistant")?.hass;
+    if (typeof hass?.callWS !== "function") throw new Error("Home Assistant WebSocket is unavailable");
+    const call = async (service, serviceData = {}) => {
+      const result = await hass.callWS({
+        type: "call_service",
+        domain: "astv_intent_catalogue",
+        service,
+        service_data: serviceData,
+        return_response: true,
+      });
+      if (!result || typeof result.response !== "object" || result.response === null) {
+        throw new Error(`${service} returned no response payload`);
+      }
+      return result.response;
+    };
+    const status = await call("get_administration_status");
+    const records = await call("list_intent_records", { view: "active", limit: 200 });
+    return {
+      active_revision: status.active_revision,
+      draft_revision: status.draft_revision,
+      draft_state: status.draft_state,
+      editable_revision: status.editable_revision,
+      intent_ids: records.records.map((entry) => entry.intent_id),
+    };
+  });
+}
+
 test("administrator desktop and mobile surfaces retain stage/activate semantics", async ({ browser }) => {
   const desktop = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   try {
@@ -147,10 +176,19 @@ test("known AdvNFC reference prevents deletion in the UI", async ({ browser }) =
     const page = await context.newPage();
     await login(page, session.admin);
     await openPanel(page);
+    const beforeDelete = await readCatalogueState(page);
+    expect(beforeDelete.draft_state).toBe("absent");
+    expect(beforeDelete.intent_ids).toContain("astv353_referenced");
     await page.getByText("ASTV 353 referenced routine").click();
     await page.getByRole("button", { name: "Delete" }).click();
-    await expect(page.getByText(/A3530001/)).toBeVisible();
-    await expect(page.getByText(/referenced by AdvNFC/i)).toBeVisible();
+    const blockingNotice = page.getByRole("status");
+    await expect(blockingNotice).toHaveText(
+      "Deletion is blocked because AdvNFC references this intent: ASTV 353 synthetic reference (A3530001). Manage those provider-owned mappings in AdvNFC first.",
+    );
+    await expect(blockingNotice).toContainText("A3530001");
+    await expect(page.getByRole("heading", { name: "ASTV 353 referenced routine", level: 1 })).toBeVisible();
+    const afterDelete = await readCatalogueState(page);
+    expect(afterDelete).toEqual(beforeDelete);
     await page.screenshot({ path: `${evidenceDir}/referenced-delete-blocked.png`, fullPage: true });
   } finally {
     await context.close();

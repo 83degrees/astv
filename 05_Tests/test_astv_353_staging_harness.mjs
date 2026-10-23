@@ -220,6 +220,25 @@ test("browser and lifecycle suites cover the approved acceptance matrix", () => 
   assert.match(restorationVerifier, /active_fixture_mismatch/);
 });
 
+test("referenced-delete browser check requires the exact warning and proves no catalogue mutation", () => {
+  const testStart = browser.indexOf('test("known AdvNFC reference prevents deletion in the UI"');
+  const testBlock = browser.slice(testStart);
+  assert.ok(testStart >= 0);
+  assert.match(testBlock, /Deletion is blocked because AdvNFC references this intent: ASTV 353 synthetic reference \(A3530001\)\. Manage those provider-owned mappings in AdvNFC first\./);
+  assert.match(testBlock, /expect\(blockingNotice\)\.toContainText\("A3530001"\)/);
+  assert.doesNotMatch(testBlock, /referenced by AdvNFC/i);
+  assert.match(testBlock, /const beforeDelete = await readCatalogueState\(page\)/);
+  assert.match(testBlock, /expect\(beforeDelete\.draft_state\)\.toBe\("absent"\)/);
+  assert.match(testBlock, /expect\(beforeDelete\.intent_ids\)\.toContain\("astv353_referenced"\)/);
+  assert.match(testBlock, /const afterDelete = await readCatalogueState\(page\)/);
+  assert.match(testBlock, /expect\(afterDelete\)\.toEqual\(beforeDelete\)/);
+  assert.match(testBlock, /getByRole\("heading", \{ name: "ASTV 353 referenced routine", level: 1 \}\)/);
+  assert.doesNotMatch(testBlock, /create_intent_record|update_intent_record|delete_intent_record|activate_intent_catalogue/);
+  assert.match(browser, /service,\s*service_data: serviceData/);
+  assert.match(browser, /call\("get_administration_status"\)/);
+  assert.match(browser, /call\("list_intent_records", \{ view: "active", limit: 200 \}\)/);
+});
+
 test("login waits for authenticated HA state and explicitly routes to the panel", () => {
   assert.equal(classifyAuthenticationState({ authenticated: false, error: null }), "pending");
   assert.equal(classifyAuthenticationState({ authenticated: false, error: "Invalid authentication" }), "authentication_error");

@@ -1,20 +1,11 @@
 name: ASTV-353 disposable administration UI staging
 
 on:
-  workflow_dispatch:
-    inputs:
-      mode:
-        description: Separately authorised verification mode
-        required: true
-        default: read_only
-        type: choice
-        options:
-          - read_only
-          - controlled_lifecycle
-      human_gate:
-        description: Must equal ASTV-353-G2 after explicit human approval
-        required: true
-        type: string
+  pull_request:
+    branches:
+      - beta
+    types:
+      - labeled
 
 permissions:
   contents: read
@@ -22,7 +13,13 @@ permissions:
 jobs:
   verify-private-stage:
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.human_gate == 'ASTV-353-G2'
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      github.event.label.name == 'ASTV-353-STEP2-READ-ONLY' &&
+      github.event.pull_request.number == 130 &&
+      github.event.pull_request.base.ref == 'beta' &&
+      github.event.pull_request.head.ref == 'gsheldon/astv-353-stage2-step1-offline-preparation' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -36,24 +33,34 @@ jobs:
       STAGE_CONTAINER: astv353-home-assistant
       BROWSER_CONTAINER: astv353-browser
       STAGE_NETWORK: astv353-private
-      EFFECTIVE_MODE: ${{ inputs.mode }}
-      EXPECTED_HEAD_SHA: ${{ github.sha }}
-      HUMAN_GATE: ${{ inputs.human_gate }}
+      EFFECTIVE_MODE: read_only
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_LABEL: ${{ github.event.label.name }}
+      PR_ACTION: ${{ github.event.action }}
 
     steps:
       - name: Enforce the authorised event, ref, and mode
         shell: bash
         run: |
           set -euo pipefail
-          test "${GITHUB_EVENT_NAME}" = "workflow_dispatch"
-          test "${HUMAN_GATE}" = "ASTV-353-G2"
-          test "${EFFECTIVE_MODE}" = "read_only" -o "${EFFECTIVE_MODE}" = "controlled_lifecycle"
+          test "${GITHUB_EVENT_NAME}" = "pull_request"
+          test "${PR_ACTION}" = "labeled"
+          test "${PR_LABEL}" = "ASTV-353-STEP2-READ-ONLY"
+          test "${PR_NUMBER}" = "130"
+          test "${PR_BASE_REF}" = "beta"
+          test "${PR_HEAD_REF}" = "gsheldon/astv-353-stage2-step1-offline-preparation"
+          test "${PR_HEAD_REPOSITORY}" = "${GITHUB_REPOSITORY}"
+          test "${EFFECTIVE_MODE}" = "read_only"
 
       - name: Check out governed ASTV candidate and tags
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          ref: ${{ github.sha }}
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Verify exact checked-out candidate
         shell: bash
@@ -234,19 +241,6 @@ jobs:
             'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config playwright.config.mjs browser.spec.mjs'
           sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
           sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
-
-      - name: Execute separately authorised synthetic lifecycle
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'controlled_lifecycle'
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker exec "${STAGE_CONTAINER}" python3 /config/staging/lifecycle.py
-          docker restart "${STAGE_CONTAINER}" >/dev/null
-          for attempt in $(seq 1 120); do
-            docker exec "${STAGE_CONTAINER}" python3 -c "import socket; s=socket.create_connection(('127.0.0.1',8123),2); s.close()" 2>/dev/null && break
-            sleep 2
-          done
-          docker exec "${STAGE_CONTAINER}" python3 /config/staging/verify_restoration.py
 
       - name: Verify fixture restoration and segregation
         shell: bash

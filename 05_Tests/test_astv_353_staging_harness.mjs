@@ -12,15 +12,24 @@ const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/stag
 
 const sha256 = (path) => crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 
-test("workflow is manual-only pending a separate execution gate and always disposes resources", () => {
-  assert.match(workflow, /workflow_dispatch:/);
-  assert.doesNotMatch(workflow, /pull_request:/);
+test("workflow exposes only the exact PR-labeled read-only route and always disposes resources", () => {
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /types:\s*\n\s*- labeled/);
+  assert.doesNotMatch(workflow, /workflow_dispatch:/);
   assert.doesNotMatch(workflow, /pull_request_target:/);
   assert.doesNotMatch(workflow, /\n\s+(push|schedule):/);
-  assert.match(workflow, /ASTV-353-G2/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch'/);
-  assert.match(workflow, /EFFECTIVE_MODE: \$\{\{ inputs\.mode \}\}/);
-  assert.match(workflow, /github\.event_name == 'workflow_dispatch' && inputs\.mode == 'controlled_lifecycle'/);
+  assert.match(workflow, /github\.event_name == 'pull_request'/);
+  assert.match(workflow, /github\.event\.action == 'labeled'/);
+  assert.match(workflow, /github\.event\.label\.name == 'ASTV-353-STEP2-READ-ONLY'/);
+  assert.match(workflow, /github\.event\.pull_request\.number == 130/);
+  assert.match(workflow, /github\.event\.pull_request\.base\.ref == 'beta'/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.ref == 'gsheldon\/astv-353-stage2-step1-offline-preparation'/);
+  assert.match(workflow, /github\.event\.pull_request\.head\.repo\.full_name == github\.repository/);
+  assert.match(workflow, /EFFECTIVE_MODE: read_only/);
+  assert.match(workflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.doesNotMatch(workflow, /controlled_lifecycle/);
+  assert.doesNotMatch(workflow, /secrets\./);
+  assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /docker network create --internal/);
   assert.doesNotMatch(workflow, /^\s+(--publish|-p\s)/m);
   assert.match(workflow, /if: always\(\)/);
@@ -125,6 +134,15 @@ test("offline contracts cover startup, authentication, selectors, permissions, i
   assert.match(workflow, /if: always\(\)/);
   assert.match(workflow, /containers_removed=true/);
   assert.match(workflow, /network_removed=true/);
+});
+
+test("ordinary PR updates cannot start the stage and the labeled route checks out the immutable PR head", () => {
+  assert.doesNotMatch(workflow, /synchronize|opened|reopened/);
+  assert.match(workflow, /ref: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
+  assert.match(workflow, /test "\$\(git rev-parse HEAD\)" = "\$\{EXPECTED_HEAD_SHA\}"/);
+  assert.match(workflow, /PR_ACTION: \$\{\{ github\.event\.action \}\}/);
+  assert.match(workflow, /test "\$\{PR_ACTION\}" = "labeled"/);
+  assert.match(workflow, /test "\$\{EFFECTIVE_MODE\}" = "read_only"/);
 });
 
 test("browser and lifecycle suites cover the approved acceptance matrix", () => {

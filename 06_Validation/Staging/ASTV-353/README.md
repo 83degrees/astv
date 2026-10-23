@@ -1,12 +1,15 @@
 # ASTV-353 Disposable Administration UI Stage
 
 This directory defines a private, one-shot Home Assistant stage for the
-ASTV administration UI acceptance matrix. The workflow is manual-only and
-requires the literal gate value `ASTV-353-G2`; opening or updating a pull
-request cannot start the disposable environment. It does not use
-`pull_request_target`, repository secrets, or write permissions. Step 1 only
-prepares and statically validates these assets. Starting Home Assistant or a
-browser remains subject to a separate human-approved Step 2 gate.
+ASTV administration UI acceptance matrix. Because the workflow does not exist
+on the default branch, it uses a GitHub-supported `pull_request` labeled-event
+route rather than `workflow_dispatch`. The job is guarded to PR #130, base
+`beta`, the exact same-repository head branch, and the label
+`ASTV-353-STEP2-READ-ONLY`. Ordinary PR updates cannot start the disposable
+environment. Applying that label is reserved for a separate human-approved
+Step 2 gate. The route checks out and verifies the immutable PR head and always
+sets `read_only`; there is no workflow path to `controlled_lifecycle`. It does
+not use `pull_request_target`, repository secrets, or write permissions.
 
 The workflow assembles the stage from immutable product identities:
 
@@ -41,13 +44,14 @@ Pinned fixture SHA-256 identities are checked offline:
 - AdvNFC mapping: `79376c93e86e676b062628aa81c618d6c92ad4f7d6af9aba1a635bda592daa7d`;
 - inert MediaCat double: `8c2c15931d21556d3381b23697227daf4e3ae0875addcf079407becb05fd1910`.
 
-When separately authorised, `read_only` proves identities, provider/UI loading, admin versus non-admin
+When separately authorised, the labeled `read_only` route proves identities, provider/UI loading, admin versus non-admin
 controls, desktop/mobile rendering, reverse AdvNFC references, and unchanged
 fixture hashes. `controlled_lifecycle` additionally covers Create/Save versus
 Activate, edit, delete/reference protection, stale revisions, validation and
 MediaCat activation errors, explicit activation, and restoration of the
-staging fixture. Controlled lifecycle requires a fresh, separately authorised
-manual gate.
+staging fixture. Controlled lifecycle requires a future, separately reviewed
+workflow correction and fresh human authorisation; it cannot be selected in
+the present workflow.
 
 Every run captures source trees and hashes, image digests, container/network
 isolation, structured API outcomes, desktop/mobile screenshots, logs, fixture

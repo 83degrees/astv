@@ -1,0 +1,22 @@
+homeassistant:
+  name: ASTV-353 Disposable Staging
+  latitude: 0
+  longitude: 0
+  elevation: 0
+  unit_system: metric
+  time_zone: Etc/UTC
+  country: GB
+
+frontend:
+api:
+config:
+
+logger:
+  default: warning
+  logs:
+    custom_components.astv_intent_catalogue: info
+    custom_components.advnfc: info
+    custom_components.mediacat: info
+
+advnfc:
+mediacat:

@@ -1,0 +1,24 @@
+schema: astv.intent_catalogue
+schema_version: "1.0.0"
+records:
+  astv353_referenced:
+    intent: routine.run
+    title: ASTV 353 referenced routine
+    routine: astv_353_inert_referenced
+    params: {}
+  astv353_validation:
+    intent: media.play_source
+    title: ASTV 353 validation media
+    params:
+      output:
+        domain: audio
+      catalogue_id: astv_353_stage
+      item_id: validation_media
+  astv353_missing_media:
+    intent: media.play_source
+    title: ASTV 353 missing MediaCat target
+    params:
+      output:
+        domain: audio
+      catalogue_id: astv_353_stage
+      item_id: deliberately_missing

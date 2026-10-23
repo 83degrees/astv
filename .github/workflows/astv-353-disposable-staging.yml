@@ -1,0 +1,410 @@
+name: ASTV-353 disposable administration UI staging
+
+on:
+  pull_request:
+    branches:
+      - beta
+    types:
+      - labeled
+
+permissions:
+  contents: read
+
+jobs:
+  verify-private-stage:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'labeled' &&
+      (github.event.label.name == 'ASTV-353-STEP2-READ-ONLY' ||
+       github.event.label.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE') &&
+      github.event.pull_request.number == 130 &&
+      github.event.pull_request.base.ref == 'beta' &&
+      github.event.pull_request.head.ref == 'gsheldon/astv-353-stage2-step1-offline-preparation' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ASTV_TAG: v0.5.0-beta.c630ce5
+      ASTV_SHA: c630ce5c1ba57cdb4d69b9185adc4a3eed60f7cd
+      ADVNFC_TAG: v1.6.0-beta.dbef2f5
+      ADVNFC_SHA: dbef2f5133d2efb6f426b348916dc0c58ec1e147
+      HA_IMAGE: ghcr.io/home-assistant/home-assistant:2026.9.4
+      BROWSER_IMAGE: mcr.microsoft.com/playwright:v1.56.1-noble
+      PLAYWRIGHT_VERSION: 1.56.1
+      STAGE_CONTAINER: astv353-home-assistant
+      BROWSER_CONTAINER: astv353-browser
+      STAGE_NETWORK: astv353-private
+      EFFECTIVE_MODE: ${{ github.event.label.name == 'ASTV-353-STAGE3-CONTROLLED-LIFECYCLE' && 'controlled_lifecycle' || 'read_only' }}
+      EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+      PR_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      PR_HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_LABEL: ${{ github.event.label.name }}
+      PR_ACTION: ${{ github.event.action }}
+
+    steps:
+      - name: Enforce the authorised event, ref, and mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_EVENT_NAME}" = "pull_request"
+          test "${PR_ACTION}" = "labeled"
+          test "${PR_NUMBER}" = "130"
+          test "${PR_BASE_REF}" = "beta"
+          test "${PR_HEAD_REF}" = "gsheldon/astv-353-stage2-step1-offline-preparation"
+          test "${PR_HEAD_REPOSITORY}" = "${GITHUB_REPOSITORY}"
+          case "${PR_LABEL}" in
+            ASTV-353-STEP2-READ-ONLY)
+              test "${EFFECTIVE_MODE}" = "read_only"
+              ;;
+            ASTV-353-STAGE3-CONTROLLED-LIFECYCLE)
+              test "${EFFECTIVE_MODE}" = "controlled_lifecycle"
+              ;;
+            *)
+              exit 1
+              ;;
+          esac
+
+      - name: Check out governed ASTV candidate and tags
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify exact checked-out candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+
+      - name: Check out immutable AdvNFC provider
+        uses: actions/checkout@v4
+        with:
+          repository: 83degrees/AdvNFC
+          ref: v1.6.0-beta.dbef2f5
+          path: _advnfc
+          fetch-depth: 0
+
+      - name: Assemble synthetic private configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="${RUNNER_TEMP}/astv-353-stage"
+          config_root="${stage_root}/config"
+          evidence_root="${stage_root}/evidence"
+          mkdir -p "${config_root}/custom_components" "${evidence_root}" "${stage_root}/packages"
+          cp -R 06_Validation/Staging/ASTV-353/config/. "${config_root}/"
+
+          test "$(git rev-list -n 1 "${ASTV_TAG}")" = "${ASTV_SHA}"
+          test "$(git -C _advnfc rev-parse HEAD)" = "${ADVNFC_SHA}"
+          git archive "${ASTV_TAG}" custom_components/astv_intent_catalogue | tar -x -C "${config_root}"
+          git -C _advnfc archive HEAD custom_components/advnfc | tar -x -C "${config_root}"
+
+          git rev-parse "${ASTV_TAG}:custom_components/astv_intent_catalogue" > "${evidence_root}/astv-tree.txt"
+          git -C _advnfc rev-parse 'HEAD:custom_components/advnfc' > "${evidence_root}/advnfc-tree.txt"
+          printf '%s\n' "${ASTV_SHA}" > "${evidence_root}/astv-tag-sha.txt"
+          printf '%s\n' "${ADVNFC_SHA}" > "${evidence_root}/advnfc-tag-sha.txt"
+          find "${config_root}" -type f -print0 | sort -z | xargs -0 sha256sum > "${evidence_root}/config-before.sha256"
+
+          npm pack "playwright-core@${PLAYWRIGHT_VERSION}" --pack-destination "${stage_root}/packages"
+          npm pack "playwright@${PLAYWRIGHT_VERSION}" --pack-destination "${stage_root}/packages"
+          npm pack "@playwright/test@${PLAYWRIGHT_VERSION}" --pack-destination "${stage_root}/packages"
+          sha256sum "${stage_root}"/packages/*.tgz > "${evidence_root}/browser-packages.sha256"
+          jq -n \
+            --arg event "${GITHUB_EVENT_NAME}" \
+            --arg mode "${EFFECTIVE_MODE}" \
+            --arg label "${PR_LABEL}" \
+            --arg head_sha "${EXPECTED_HEAD_SHA}" \
+            --arg workflow_ref "${GITHUB_WORKFLOW_REF}" \
+            --arg run_id "${GITHUB_RUN_ID}" \
+            '{event:$event,label:$label,mode:$mode,head_sha:$head_sha,workflow_ref:$workflow_ref,run_id:$run_id}' \
+            > "${evidence_root}/workflow-invocation.json"
+          printf '%s\n' "${stage_root}" > "${RUNNER_TEMP}/astv353-stage-root.txt"
+
+      - name: Pull and record exact runtime image identities
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          docker pull "${HA_IMAGE}"
+          docker pull "${BROWSER_IMAGE}"
+          docker image inspect "${HA_IMAGE}" --format '{{json .RepoDigests}}' > "${stage_root}/evidence/ha-image-repodigests.json"
+          docker image inspect "${BROWSER_IMAGE}" --format '{{json .RepoDigests}}' > "${stage_root}/evidence/browser-image-repodigests.json"
+          jq -e 'length > 0' "${stage_root}/evidence/ha-image-repodigests.json" >/dev/null
+          jq -e 'length > 0' "${stage_root}/evidence/browser-image-repodigests.json" >/dev/null
+
+      - name: Prepare owner-only writable Home Assistant configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          config_root="${stage_root}/config"
+          runtime_identity="$(docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --entrypoint python3 \
+            "${HA_IMAGE}" -c 'import json, os; print(json.dumps({"uid": os.getuid(), "gid": os.getgid()}))')"
+          ha_uid="$(jq -er '.uid | numbers' <<<"${runtime_identity}")"
+          ha_gid="$(jq -er '.gid | numbers' <<<"${runtime_identity}")"
+          printf '%s\n' "${runtime_identity}" > "${stage_root}/evidence/ha-runtime-identity.json"
+
+          browser_identity="$(docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --entrypoint node \
+            "${BROWSER_IMAGE}" -e 'console.log(JSON.stringify({uid: process.getuid(), gid: process.getgid()}))')"
+          browser_uid="$(jq -er '.uid | numbers' <<<"${browser_identity}")"
+          browser_gid="$(jq -er '.gid | numbers' <<<"${browser_identity}")"
+          printf '%s\n' "${browser_identity}" > "${stage_root}/evidence/browser-runtime-identity.json"
+
+          sudo chown -R "${ha_uid}:${ha_gid}" "${config_root}"
+          sudo find "${config_root}" -type d -exec chmod 0755 {} +
+          sudo find "${config_root}" -type f -exec chmod 0644 {} +
+          test -z "$(sudo find "${config_root}" \( ! -uid "${ha_uid}" -o ! -gid "${ha_gid}" \) -print -quit)"
+          test -z "$(sudo find "${config_root}" -perm /022 -print -quit)"
+
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${config_root}:/config:rw" \
+            --entrypoint python3 \
+            "${HA_IMAGE}" -c 'from pathlib import Path; deps = Path("/config/deps"); deps.mkdir(exist_ok=True); probe = deps / ".astv353-owner-write-test"; probe.write_text("ok\n"); probe.unlink()'
+          sudo find "${config_root}" -printf '%m %U:%G %p\n' | sort > "${stage_root}/evidence/config-permissions.txt"
+
+          browser_evidence="${stage_root}/browser-evidence"
+          mkdir "${browser_evidence}"
+          sudo chown "${browser_uid}:${browser_gid}" "${browser_evidence}"
+          sudo chmod 0755 "${browser_evidence}"
+          docker run --rm \
+            --network none \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${browser_evidence}:/evidence:rw" \
+            --entrypoint node \
+            "${BROWSER_IMAGE}" -e 'const fs = require("fs"); const path = "/evidence/.astv353-owner-write-test"; fs.writeFileSync(path, "ok\n"); fs.unlinkSync(path)'
+
+      - name: Start internal-only Home Assistant stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          docker network create --internal "${STAGE_NETWORK}" >/dev/null
+          docker run --detach \
+            --name "${STAGE_CONTAINER}" \
+            --hostname home-assistant \
+            --network "${STAGE_NETWORK}" \
+            --network-alias home-assistant \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            --tmpfs /run:rw,nosuid,size=64m \
+            --volume "${stage_root}/config:/config:rw" \
+            --entrypoint python3 \
+            "${HA_IMAGE}" -m homeassistant --config /config
+
+          for attempt in $(seq 1 120); do
+            docker exec "${STAGE_CONTAINER}" python3 -c "import socket; s=socket.create_connection(('127.0.0.1',8123),2); s.close()" 2>/dev/null && break
+            docker inspect "${STAGE_CONTAINER}" --format '{{.State.Running}}' | grep -qx true
+            sleep 2
+          done
+          docker inspect "${STAGE_CONTAINER}" --format \
+            '{"network_mode":"{{.HostConfig.NetworkMode}}","published_ports":{{json .HostConfig.PortBindings}},"cap_drop":{{json .HostConfig.CapDrop}},"security_opt":{{json .HostConfig.SecurityOpt}}}' \
+            > "${stage_root}/evidence/ha-isolation.json"
+          docker network inspect "${STAGE_NETWORK}" --format '{"internal":{{.Internal}},"containers":{{json .Containers}}}' > "${stage_root}/evidence/network-isolation.json"
+          jq -e '.internal == true' "${stage_root}/evidence/network-isolation.json" >/dev/null
+          jq -e 'has("published_ports") and ((.published_ports | type) == "null" or ((.published_ports | type) == "object" and (.published_ports | length) == 0))' "${stage_root}/evidence/ha-isolation.json" >/dev/null
+
+      - name: Bootstrap identities and synthetic fixtures
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          docker exec "${STAGE_CONTAINER}" python3 /config/staging/prepare_stage.py
+          ha_uid="$(jq -er '.uid | numbers' "${stage_root}/evidence/ha-runtime-identity.json")"
+          ha_gid="$(jq -er '.gid | numbers' "${stage_root}/evidence/ha-runtime-identity.json")"
+          test -z "$(sudo find "${stage_root}/config" \( ! -uid "${ha_uid}" -o ! -gid "${ha_gid}" \) -print -quit)"
+          test -z "$(sudo find "${stage_root}/config" -perm /022 -print -quit)"
+          sudo find "${stage_root}/config" -printf '%m %U:%G %p\n' | sort > "${stage_root}/evidence/config-permissions-after-bootstrap.txt"
+          sudo cp "${stage_root}/config/staging/stage-evidence.json" "${stage_root}/evidence/stage-evidence.json"
+          printf '%s\n' prepared > "${stage_root}/evidence/stage-prepared.status"
+
+      - name: Run desktop, mobile, and permission browser checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          browser_uid="$(jq -er '.uid | numbers' "${stage_root}/evidence/browser-runtime-identity.json")"
+          browser_gid="$(jq -er '.gid | numbers' "${stage_root}/evidence/browser-runtime-identity.json")"
+          sudo chown "${browser_uid}:${browser_gid}" "${stage_root}/config/staging/browser-session.json"
+          sudo chmod 0400 "${stage_root}/config/staging/browser-session.json"
+          printf '%s\n' started > "${stage_root}/evidence/browser-execution.status"
+          docker run --rm \
+            --name "${BROWSER_CONTAINER}" \
+            --network "${STAGE_NETWORK}" \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --volume "${stage_root}/config/staging/browser-session.json:/stage/staging/browser-session.json:ro" \
+            --volume "${stage_root}/browser-evidence:/evidence:rw" \
+            --volume "${PWD}/06_Validation/Staging/ASTV-353/browser:/work:ro" \
+            --volume "${stage_root}/packages:/packages:ro" \
+            --env ASTV353_MODE="${EFFECTIVE_MODE}" \
+            --env PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+            --entrypoint bash \
+            "${BROWSER_IMAGE}" -lc \
+            'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config ./playwright.config.mjs ./browser.spec.mjs'
+          printf '%s\n' passed > "${stage_root}/evidence/browser-execution.status"
+          sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
+          sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
+
+      - name: Run controlled synthetic lifecycle and prove restoration
+        if: env.EFFECTIVE_MODE == 'controlled_lifecycle'
+        shell: bash
+        run: |
+          set -u
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          lifecycle_rc=0
+          restart_rc=0
+          restoration_rc=0
+          evidence_rc=0
+          printf '%s\n' started > "${stage_root}/evidence/lifecycle-execution.status"
+
+          docker exec "${STAGE_CONTAINER}" python3 /config/staging/lifecycle.py || lifecycle_rc=$?
+          docker restart "${STAGE_CONTAINER}" >/dev/null || restart_rc=$?
+          if test "${restart_rc}" -eq 0; then
+            ready=false
+            for attempt in $(seq 1 120); do
+              if docker exec "${STAGE_CONTAINER}" python3 -c "import socket; s=socket.create_connection(('127.0.0.1',8123),2); s.close()" 2>/dev/null; then
+                ready=true
+                break
+              fi
+              docker inspect "${STAGE_CONTAINER}" --format '{{.State.Running}}' 2>/dev/null | grep -qx true || break
+              sleep 2
+            done
+            test "${ready}" = true || restart_rc=1
+          fi
+          if test "${restart_rc}" -eq 0; then
+            docker exec "${STAGE_CONTAINER}" python3 /config/staging/verify_restoration.py || restoration_rc=$?
+          else
+            restoration_rc=1
+          fi
+
+          sudo test -f "${stage_root}/config/staging/lifecycle-evidence.json" \
+            && sudo cp "${stage_root}/config/staging/lifecycle-evidence.json" "${stage_root}/evidence/lifecycle-evidence.json" \
+            || evidence_rc=1
+          jq -n \
+            --argjson lifecycle_rc "${lifecycle_rc}" \
+            --argjson restart_rc "${restart_rc}" \
+            --argjson restoration_rc "${restoration_rc}" \
+            --argjson evidence_rc "${evidence_rc}" \
+            '{lifecycle_rc:$lifecycle_rc,restart_rc:$restart_rc,restoration_rc:$restoration_rc,evidence_rc:$evidence_rc}' \
+            > "${stage_root}/evidence/lifecycle-run-summary.json"
+          if test "${lifecycle_rc}" -eq 0 \
+            && test "${restart_rc}" -eq 0 \
+            && test "${restoration_rc}" -eq 0 \
+            && test "${evidence_rc}" -eq 0; then
+            printf '%s\n' passed > "${stage_root}/evidence/lifecycle-execution.status"
+            exit 0
+          fi
+          printf '%s\n' failed > "${stage_root}/evidence/lifecycle-execution.status"
+          exit 1
+
+      - name: Capture fixture integrity and segregation evidence
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
+          if test -n "${stage_root}" && test -d "${stage_root}"; then
+            sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py" \
+              post-browser "${stage_root}"
+            validation_rc=$?
+            sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence" || true
+            exit "${validation_rc}"
+          fi
+          exit 1
+
+      - name: Capture logs and dispose all staging resources
+        if: always()
+        shell: bash
+        run: |
+          permission_rc=0
+          privacy_rc=0
+          cleanup_rc=0
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
+          if test -n "${stage_root}" && test -d "${stage_root}"; then
+            log_path="${RUNNER_TEMP}/astv353-home-assistant.log"
+            docker logs "${STAGE_CONTAINER}" > "${log_path}" 2>&1 || true
+            sudo cp "${log_path}" "${stage_root}/evidence/home-assistant.log" || true
+            sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/" || true
+            for name in stage-evidence.json lifecycle-evidence.json; do
+              sudo test -f "${stage_root}/config/staging/${name}" && sudo cp "${stage_root}/config/staging/${name}" "${stage_root}/evidence/${name}" || true
+            done
+            if test -f "${stage_root}/evidence/stage-prepared.status"; then
+              sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/verify_permission_evidence.py" \
+                "${stage_root}/evidence" || permission_rc=$?
+            fi
+            if sudo test -f "${stage_root}/config/staging/private-artifact-secrets.json"; then
+              sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py" \
+                "${stage_root}/config/staging/private-artifact-secrets.json" \
+                "${stage_root}/evidence" || privacy_rc=$?
+            elif test -f "${stage_root}/evidence/browser-execution.status"; then
+              privacy_rc=1
+              printf '%s\n' '{"status":"failed","reason":"secret inventory missing after browser start"}' \
+                > "${stage_root}/evidence/artifact-privacy.json"
+            else
+              printf '%s\n' '{"status":"not_run","reason":"browser bootstrap did not create credentials"}' \
+                > "${stage_root}/evidence/artifact-privacy.json"
+            fi
+            sudo rm -f \
+              "${stage_root}/config/staging/browser-session.json" \
+              "${stage_root}/config/staging/private-artifact-secrets.json"
+            sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence" || true
+          fi
+          docker rm --force "${BROWSER_CONTAINER}" "${STAGE_CONTAINER}" >/dev/null 2>&1 || true
+          docker network rm "${STAGE_NETWORK}" >/dev/null 2>&1 || true
+          if container_names="$(docker ps --all --format '{{.Names}}')"; then
+            grep -Eq '^astv353-(home-assistant|browser)$' <<<"${container_names}" && cleanup_rc=1
+          else
+            cleanup_rc=1
+          fi
+          if network_names="$(docker network ls --format '{{.Name}}')"; then
+            grep -qx "${STAGE_NETWORK}" <<<"${network_names}" && cleanup_rc=1
+          else
+            cleanup_rc=1
+          fi
+          if test -n "${stage_root}" && test -d "${stage_root}"; then
+            if test "${cleanup_rc}" -eq 0; then
+              printf '%s\n' 'containers_removed=true' 'network_removed=true' > "${stage_root}/evidence/disposal.txt"
+            else
+              printf '%s\n' 'containers_removed=false' 'network_removed=false' > "${stage_root}/evidence/disposal.txt"
+            fi
+          fi
+          test "${permission_rc}" -eq 0 && test "${privacy_rc}" -eq 0 && test "${cleanup_rc}" -eq 0
+
+      - name: Authorize sanitized evidence upload
+        id: evidence_upload_gate
+        if: always()
+        shell: bash
+        run: |
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
+          if test -n "${stage_root}" \
+            && python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/evidence_controls.py" \
+              authorize-upload "${stage_root}"; then
+            echo 'safe=true' >> "${GITHUB_OUTPUT}"
+          else
+            echo 'safe=false' >> "${GITHUB_OUTPUT}"
+            exit 1
+          fi
+
+      - name: Upload immutable staging evidence
+        if: always() && steps.evidence_upload_gate.outputs.safe == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: astv-353-disposable-staging-evidence-${{ github.run_id }}
+          path: ${{ runner.temp }}/astv-353-stage/evidence
+          if-no-files-found: error
+          retention-days: 30

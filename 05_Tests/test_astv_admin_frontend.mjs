@@ -19,6 +19,56 @@ function hassWith(handler, isAdmin = false) {
   };
 }
 
+function editorCancelHarness({ existing = false, dirty = false } = {}) {
+  const buttons = ["header", "footer"].map((name) => ({
+    name,
+    listeners: {},
+    addEventListener(type, listener) { this.listeners[type] = listener; },
+    click() { this.listeners.click?.(); },
+  }));
+  const form = {
+    addEventListener() {},
+    querySelector() { return null; },
+  };
+  const root = {
+    querySelector(selector) {
+      return selector === "form" ? form : null;
+    },
+    querySelectorAll(selector) {
+      return selector === "[data-action=cancel]" ? buttons : [];
+    },
+  };
+  const original = existing
+    ? { intentId: "classic_fm", record: { intent: "media.play_source", title: "Classic FM" } }
+    : { intentId: "", record: blankIntentRecord() };
+  const editing = structuredClone(original);
+  if (dirty) editing.record.title = "Changed";
+  const filters = { search: "classic", type: "all", sort: "id-asc" };
+  let renders = 0;
+  let actionCalls = 0;
+  let providerWrites = 0;
+  const panel = Object.create(ASTVIntentCataloguePanel.prototype);
+  Object.assign(panel, {
+    shadowRoot: root,
+    screen: "editor",
+    editing,
+    original,
+    editorErrors: { title: "retained until close" },
+    filters,
+    listScrollTop: 37,
+    adapter: {
+      async guardedMutation() { providerWrites += 1; },
+      async activate() { providerWrites += 1; },
+    },
+    async saveEditor() { actionCalls += 1; },
+    async deleteEditor() { actionCalls += 1; },
+    async activateDraft() { actionCalls += 1; },
+    render() { renders += 1; },
+  });
+  panel.bindEditorEvents();
+  return { panel, buttons, filters, actionCalls: () => actionCalls, renders: () => renders, providerWrites: () => providerWrites };
+}
+
 test("response-only calls use the authenticated Home Assistant WebSocket envelope", async () => {
   let observed;
   const adapter = new ASTVProviderAdapter(hassWith(async (message) => {
@@ -582,4 +632,101 @@ test("search input updates list rows in place without replacing the focused cont
   assert.match(table.innerHTML, /classic_fm/);
   assert.doesNotMatch(table.innerHTML, /morning/);
   assert.equal(wrap.scrollTop, 0);
+});
+
+test("new and existing editors render and bind both Cancel controls", () => {
+  for (const existing of [false, true]) {
+    const renderPanel = Object.create(ASTVIntentCataloguePanel.prototype);
+    const original = existing
+      ? { intentId: "classic_fm", record: { intent: "media.play_source", title: "Classic FM", params: { output: {} } } }
+      : { intentId: "", record: blankIntentRecord() };
+    Object.assign(renderPanel, {
+      adapter: { canManage: true },
+      view: "draft",
+      busy: false,
+      notice: null,
+      editorErrors: {},
+      original,
+      editing: structuredClone(original),
+    });
+    assert.equal(renderPanel.renderEditor().match(/data-action="cancel"/g)?.length, 2);
+
+    const { buttons } = editorCancelHarness({ existing });
+    assert.deepEqual(buttons.map((button) => typeof button.listeners.click), ["function", "function"]);
+  }
+});
+
+test("either Cancel control closes clean new and existing editors without writes", () => {
+  const priorConfirm = globalThis.confirm;
+  let confirmations = 0;
+  globalThis.confirm = () => { confirmations += 1; return true; };
+  try {
+    for (const existing of [false, true]) {
+      for (const control of [0, 1]) {
+        const harness = editorCancelHarness({ existing });
+        harness.buttons[control].click();
+        assert.equal(harness.panel.screen, "list");
+        assert.equal(harness.panel.editing, null);
+        assert.equal(harness.panel.original, null);
+        assert.deepEqual(harness.panel.editorErrors, {});
+        assert.equal(harness.panel.filters, harness.filters);
+        assert.equal(harness.panel.listScrollTop, 37);
+        assert.equal(harness.renders(), 1);
+        assert.equal(harness.actionCalls(), 0);
+        assert.equal(harness.providerWrites(), 0);
+      }
+    }
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+  assert.equal(confirmations, 0);
+});
+
+test("either Cancel control preserves a dirty editor when confirmation is refused", () => {
+  const priorConfirm = globalThis.confirm;
+  let confirmations = 0;
+  globalThis.confirm = () => { confirmations += 1; return false; };
+  try {
+    for (const existing of [false, true]) {
+      for (const control of [0, 1]) {
+        const harness = editorCancelHarness({ existing, dirty: true });
+        harness.buttons[control].click();
+        assert.equal(harness.panel.screen, "editor");
+        assert.equal(harness.panel.editing.record.title, "Changed");
+        assert.equal(harness.panel.original.record.title, existing ? "Classic FM" : "");
+        assert.equal(harness.panel.listScrollTop, 37);
+        assert.equal(harness.renders(), 0);
+        assert.equal(harness.actionCalls(), 0);
+        assert.equal(harness.providerWrites(), 0);
+      }
+    }
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+  assert.equal(confirmations, 4);
+});
+
+test("either Cancel control discards a dirty editor when confirmation is accepted", () => {
+  const priorConfirm = globalThis.confirm;
+  let confirmations = 0;
+  globalThis.confirm = () => { confirmations += 1; return true; };
+  try {
+    for (const existing of [false, true]) {
+      for (const control of [0, 1]) {
+        const harness = editorCancelHarness({ existing, dirty: true });
+        harness.buttons[control].click();
+        assert.equal(harness.panel.screen, "list");
+        assert.equal(harness.panel.editing, null);
+        assert.equal(harness.panel.original, null);
+        assert.equal(harness.panel.filters, harness.filters);
+        assert.equal(harness.panel.listScrollTop, 37);
+        assert.equal(harness.renders(), 1);
+        assert.equal(harness.actionCalls(), 0);
+        assert.equal(harness.providerWrites(), 0);
+      }
+    }
+  } finally {
+    globalThis.confirm = priorConfirm;
+  }
+  assert.equal(confirmations, 4);
 });

@@ -1,0 +1,10 @@
+resolve_media_record:
+  fields:
+    catalogue_id:
+      required: true
+      selector:
+        text:
+    item_id:
+      required: true
+      selector:
+        text:

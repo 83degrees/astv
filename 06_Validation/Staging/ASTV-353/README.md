@@ -40,6 +40,13 @@ normal path and unconditional teardown, without a world-writable handoff.
 The Playwright packages and copied test/config modules execute together from
 `/tmp/pw`, so ESM resolution finds the offline-installed local
 `@playwright/test` package rather than resolving the test from `/work`.
+Authentication no longer assumes a legacy `/lovelace` redirect: the harness
+waits for an authenticated Home Assistant client, fails explicitly on a login
+error, and then opens the ASTV panel route with bounded checks. Desktop checks
+exercise labelled controls and keyboard focus/navigation without invoking Add,
+Save, Delete, or Activate. The non-admin check calls the side-effect-free,
+admin-only `validate_intent_record` action and accepts only Home Assistant's
+native `unauthorized` rejection.
 
 Pinned fixture SHA-256 identities are checked offline:
 
@@ -61,3 +68,14 @@ isolation, structured API outcomes, desktop/mobile screenshots, logs, fixture
 restoration, and disposal status. Containers and the internal network are
 removed unconditionally. Any identity, isolation, permission, fixture,
 runtime, or restoration mismatch fails the run.
+
+Browser failure does not skip integrity evidence. An unconditional post-browser
+step records `not_run`, `failed`, or `passed` browser state, compares both
+fixture hashes, records read-only restoration as not applicable, and checks
+segregation. Browser access is limited to its token-free session file, which is
+handed to the observed browser UID:GID as mode 0400 immediately before its
+read-only bind mount; the private bootstrap-token inventory remains mode 0600
+under the Home Assistant identity. Tracing, automatic screenshots, and video are
+disabled; the final teardown redacts every synthetic credential/token byte
+sequence from text or binary evidence before upload, records that privacy
+result, removes both private session files, and still disposes all resources.

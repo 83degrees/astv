@@ -225,12 +225,17 @@ jobs:
         run: |
           set -euo pipefail
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
+          browser_uid="$(jq -er '.uid | numbers' "${stage_root}/evidence/browser-runtime-identity.json")"
+          browser_gid="$(jq -er '.gid | numbers' "${stage_root}/evidence/browser-runtime-identity.json")"
+          sudo chown "${browser_uid}:${browser_gid}" "${stage_root}/config/staging/browser-session.json"
+          sudo chmod 0400 "${stage_root}/config/staging/browser-session.json"
+          printf '%s\n' started > "${stage_root}/evidence/browser-execution.status"
           docker run --rm \
             --name "${BROWSER_CONTAINER}" \
             --network "${STAGE_NETWORK}" \
             --cap-drop ALL \
             --security-opt no-new-privileges \
-            --volume "${stage_root}/config:/stage:ro" \
+            --volume "${stage_root}/config/staging/browser-session.json:/stage/staging/browser-session.json:ro" \
             --volume "${stage_root}/browser-evidence:/evidence:rw" \
             --volume "${PWD}/06_Validation/Staging/ASTV-353/browser:/work:ro" \
             --volume "${stage_root}/packages:/packages:ro" \
@@ -239,25 +244,70 @@ jobs:
             --entrypoint bash \
             "${BROWSER_IMAGE}" -lc \
             'set -euo pipefail; mkdir /tmp/pw; cd /tmp/pw; npm init -y >/dev/null; npm install --offline --ignore-scripts /packages/playwright-core-*.tgz /packages/playwright-[0-9]*.tgz /packages/playwright-test-*.tgz >/dev/null; cp /work/*.mjs .; npx playwright test --config ./playwright.config.mjs ./browser.spec.mjs'
+          printf '%s\n' passed > "${stage_root}/evidence/browser-execution.status"
           sudo cp -R "${stage_root}/browser-evidence/." "${stage_root}/evidence/"
           sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence"
 
-      - name: Verify fixture restoration and segregation
+      - name: Capture fixture integrity and segregation evidence
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt")"
-          before_catalogue="$(grep '/astv/astv_intent_catalogue.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
-          before_mapping="$(grep '/AdvNFC/advnfc_tag_mapping.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
-          test "${before_catalogue}" = "$(sudo sha256sum "${stage_root}/config/astv/astv_intent_catalogue.yaml" | cut -d' ' -f1)"
-          test "${before_mapping}" = "$(sudo sha256sum "${stage_root}/config/AdvNFC/advnfc_tag_mapping.yaml" | cut -d' ' -f1)"
-          ! sudo grep -R -E -i '(ha-starburst|assistive/nfc|mqtt:|password:|api_key:|bearer )' "${stage_root}/config" --exclude='browser-session.json'
-          sudo rm -f "${stage_root}/config/staging/browser-session.json"
+          set -uo pipefail
+          validation_rc=0
+          browser_status=not_run
+          fixture_integrity=not_run
+          segregation=not_run
+          restoration=not_applicable_read_only
+          stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
+          if test -n "${stage_root}" && test -d "${stage_root}"; then
+            if test -f "${stage_root}/evidence/browser-execution.status"; then
+              browser_status="$(cat "${stage_root}/evidence/browser-execution.status")"
+              if test "${browser_status}" = started; then
+                browser_status=failed
+                printf '%s\n' failed > "${stage_root}/evidence/browser-execution.status"
+              fi
+              test "${browser_status}" = passed || validation_rc=1
+            fi
+            if test -f "${stage_root}/evidence/config-before.sha256" \
+              && sudo test -f "${stage_root}/config/astv/astv_intent_catalogue.yaml" \
+              && sudo test -f "${stage_root}/config/AdvNFC/advnfc_tag_mapping.yaml"; then
+              before_catalogue="$(grep '/astv/astv_intent_catalogue.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
+              before_mapping="$(grep '/AdvNFC/advnfc_tag_mapping.yaml$' "${stage_root}/evidence/config-before.sha256" | cut -d' ' -f1)"
+              fixture_integrity=passed
+              test -n "${before_catalogue}" \
+                && test "${before_catalogue}" = "$(sudo sha256sum "${stage_root}/config/astv/astv_intent_catalogue.yaml" | cut -d' ' -f1)" \
+                || fixture_integrity=failed
+              test -n "${before_mapping}" \
+                && test "${before_mapping}" = "$(sudo sha256sum "${stage_root}/config/AdvNFC/advnfc_tag_mapping.yaml" | cut -d' ' -f1)" \
+                || fixture_integrity=failed
+              test "${fixture_integrity}" = passed || validation_rc=1
+            fi
+            if sudo test -d "${stage_root}/config"; then
+              segregation=passed
+              sudo grep -R -E -i -q '(ha-starburst|assistive/nfc|mqtt:|password:|api_key:|bearer )' \
+                "${stage_root}/config" \
+                --exclude='browser-session.json' \
+                --exclude='private-artifact-secrets.json' \
+                && segregation=failed
+              test "${segregation}" = passed || validation_rc=1
+            fi
+            jq -n \
+              --arg browser_checks "${browser_status}" \
+              --arg fixture_integrity "${fixture_integrity}" \
+              --arg restoration "${restoration}" \
+              --arg segregation "${segregation}" \
+              '{browser_checks:$browser_checks,fixture_integrity:$fixture_integrity,restoration:$restoration,segregation:$segregation}' \
+              > "${stage_root}/evidence/post-browser-validation.json"
+          else
+            validation_rc=1
+          fi
+          exit "${validation_rc}"
 
       - name: Capture logs and dispose all staging resources
         if: always()
         shell: bash
         run: |
+          privacy_rc=0
           stage_root="$(cat "${RUNNER_TEMP}/astv353-stage-root.txt" 2>/dev/null || true)"
           if test -n "${stage_root}" && test -d "${stage_root}"; then
             log_path="${RUNNER_TEMP}/astv353-home-assistant.log"
@@ -267,7 +317,21 @@ jobs:
             for name in stage-evidence.json lifecycle-evidence.json; do
               sudo test -f "${stage_root}/config/staging/${name}" && sudo cp "${stage_root}/config/staging/${name}" "${stage_root}/evidence/${name}" || true
             done
-            sudo rm -f "${stage_root}/config/staging/browser-session.json"
+            if sudo test -f "${stage_root}/config/staging/private-artifact-secrets.json"; then
+              sudo python3 "${PWD}/06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py" \
+                "${stage_root}/config/staging/private-artifact-secrets.json" \
+                "${stage_root}/evidence" || privacy_rc=$?
+            elif test -f "${stage_root}/evidence/browser-execution.status"; then
+              privacy_rc=1
+              printf '%s\n' '{"status":"failed","reason":"secret inventory missing after browser start"}' \
+                > "${stage_root}/evidence/artifact-privacy.json"
+            else
+              printf '%s\n' '{"status":"not_run","reason":"browser bootstrap did not create credentials"}' \
+                > "${stage_root}/evidence/artifact-privacy.json"
+            fi
+            sudo rm -f \
+              "${stage_root}/config/staging/browser-session.json" \
+              "${stage_root}/config/staging/private-artifact-secrets.json"
             sudo chown -R "$(id -u):$(id -g)" "${stage_root}/evidence" || true
           fi
           docker rm --force "${BROWSER_CONTAINER}" "${STAGE_CONTAINER}" >/dev/null 2>&1 || true
@@ -277,6 +341,7 @@ jobs:
           if test -n "${stage_root}" && test -d "${stage_root}"; then
             printf '%s\n' 'containers_removed=true' 'network_removed=true' > "${stage_root}/evidence/disposal.txt"
           fi
+          exit "${privacy_rc}"
 
       - name: Upload immutable staging evidence
         if: always()

@@ -12,7 +12,7 @@ from prepare_stage import service
 
 
 async def verify() -> None:
-    token = json.loads(Path("/config/staging/browser-session.json").read_text())["admin_access_token"]
+    token = json.loads(Path("/config/staging/private-artifact-secrets.json").read_text())["admin_access_token"]
     async with aiohttp.ClientSession() as session:
         async with session.ws_connect("ws://127.0.0.1:8123/api/websocket") as socket:
             await socket.receive_json()

@@ -169,9 +169,16 @@ async def prepare(token: str, onboarding: list[dict[str, object]]) -> dict[str, 
         "onboarding": onboarding,
     }
     Path("/config/staging/stage-evidence.json").write_text(json.dumps(evidence, indent=2, sort_keys=True) + "\n")
-    Path("/config/staging/browser-session.json").write_text(
-        json.dumps({"base_url": "http://home-assistant:8123", "admin": ADMIN, "reader": READER, "admin_access_token": token})
+    browser_session = Path("/config/staging/browser-session.json")
+    browser_session.write_text(
+        json.dumps({"base_url": "http://home-assistant:8123", "admin": ADMIN, "reader": READER})
     )
+    browser_session.chmod(0o600)
+    private_secrets = Path("/config/staging/private-artifact-secrets.json")
+    private_secrets.write_text(
+        json.dumps({"admin": ADMIN, "reader": READER, "admin_access_token": token})
+    )
+    private_secrets.chmod(0o600)
     return evidence
 
 

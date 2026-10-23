@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
+import { classifyAuthenticationState, requireNativeUnauthorized } from "../06_Validation/Staging/ASTV-353/browser/browser-contract.mjs";
 
 const workflow = fs.readFileSync(".github/workflows/astv-353-disposable-staging.yml", "utf8");
 const catalogue = fs.readFileSync("06_Validation/Staging/ASTV-353/config/astv/astv_intent_catalogue.yaml", "utf8");
@@ -10,6 +14,7 @@ const browser = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/browser.
 const playwrightConfig = fs.readFileSync("06_Validation/Staging/ASTV-353/browser/playwright.config.mjs", "utf8");
 const lifecycle = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/lifecycle.py", "utf8");
 const prepareStage = fs.readFileSync("06_Validation/Staging/ASTV-353/config/staging/prepare_stage.py", "utf8");
+const sanitizer = "06_Validation/Staging/ASTV-353/config/staging/sanitize_evidence.py";
 
 const sha256 = (path) => crypto.createHash("sha256").update(fs.readFileSync(path)).digest("hex");
 
@@ -29,7 +34,7 @@ test("workflow exposes only the exact PR-labeled read-only route and always disp
   assert.match(workflow, /EFFECTIVE_MODE: read_only/);
   assert.match(workflow, /EXPECTED_HEAD_SHA: \$\{\{ github\.event\.pull_request\.head\.sha \}\}/);
   assert.doesNotMatch(workflow, /controlled_lifecycle/);
-  assert.doesNotMatch(workflow, /secrets\./);
+  assert.doesNotMatch(workflow, /\$\{\{\s*secrets\./);
   assert.match(workflow, /permissions:\s*\n\s+contents: read/);
   assert.match(workflow, /docker network create --internal/);
   assert.doesNotMatch(workflow, /^\s+(--publish|-p\s)/m);
@@ -127,7 +132,7 @@ test("offline contracts cover startup, authentication, selectors, permissions, i
   assert.match(browser, /input\[name="username"\]/);
   assert.match(browser, /input\[name="password"\]/);
   assert.match(browser, /getByRole\("button", \{ name: \/log in\/i \}\)/);
-  assert.match(browser, /getByRole\("heading", \{ name: "Intent Catalogue" \}\)/);
+  assert.match(browser, /getByRole\("heading", \{ name: "Intent Catalogue", level: 1 \}\)/);
   assert.match(browser, /getByRole\("button", \{ name: "Add intent" \}\)/);
   assert.match(workflow, /docker network create --internal/);
   assert.match(workflow, /--cap-drop ALL/);
@@ -162,5 +167,95 @@ test("browser and lifecycle suites cover the approved acceptance matrix", () => 
   }
   for (const required of ["create_save", "stale_revision", "validation_error", "mediacat_activation_error", "explicit_activate", "edit_save", "delete_save", "baseline_bytes_restored"]) {
     assert.match(lifecycle, new RegExp(required));
+  }
+});
+
+test("login waits for authenticated HA state and explicitly routes to the panel", () => {
+  assert.equal(classifyAuthenticationState({ authenticated: false, error: null }), "pending");
+  assert.equal(classifyAuthenticationState({ authenticated: false, error: "Invalid authentication" }), "authentication_error");
+  assert.equal(classifyAuthenticationState({ authenticated: true, error: null }), "authenticated");
+  assert.doesNotMatch(browser, /waitForURL\(\/\\\/lovelace/);
+  assert.match(browser, /Home Assistant authentication failed/);
+  assert.match(browser, /PANEL_PATH/);
+  assert.match(browser, /toHaveURL\(\/\\\/astv-intent-catalogue/);
+  assert.match(browser, /typeof homeAssistant\.hass\.callWS === "function"/);
+});
+
+test("permission probe fails closed unless the backend returns native Unauthorized", () => {
+  assert.doesNotThrow(() => requireNativeUnauthorized({ kind: "backend_denial", code: "unauthorized" }));
+  for (const result of [
+    { kind: "precondition_failure", reason: "missing_hass" },
+    { kind: "precondition_failure", reason: "missing_callWS" },
+    { kind: "unexpected_success" },
+    { kind: "unexpected_exception", reason: "string" },
+    { kind: "backend_denial", code: "invalid_format" },
+    { kind: "backend_denial", code: "connection_error" },
+  ]) assert.throws(() => requireNativeUnauthorized(result));
+  assert.match(browser, /service: "validate_intent_record"/);
+  assert.doesNotMatch(browser, /service: "create_intent_record"/);
+});
+
+test("read-only desktop coverage includes accessible focus and keyboard navigation", () => {
+  assert.match(browser, /getByRole\("navigation", \{ name: "Intent Catalogue sections" \}\)/);
+  assert.match(browser, /getByRole\("searchbox", \{ name: "Search" \}\)/);
+  assert.match(browser, /getByRole\("combobox", \{ name: "Type" \}\)/);
+  assert.match(browser, /getByRole\("combobox", \{ name: "Sort" \}\)/);
+  assert.match(browser, /toBeFocused\(\)/);
+  assert.match(browser, /keyboard\.press\("Tab"\)/);
+  assert.match(browser, /keyboard\.press\("Enter"\)/);
+});
+
+test("failure-path evidence uses explicit states and teardown remains unconditional", () => {
+  assert.match(workflow, /name: Capture fixture integrity and segregation evidence\s+if: always\(\)/);
+  for (const state of ["not_run", "failed", "passed", "not_applicable_read_only"]) {
+    assert.match(workflow, new RegExp(state));
+  }
+  assert.match(workflow, /post-browser-validation\.json/);
+  assert.match(workflow, /fixture_integrity/);
+  assert.match(workflow, /segregation/);
+  assert.match(workflow, /docker rm --force/);
+  assert.match(workflow, /docker network rm/);
+});
+
+test("browser secrets are minimized and artifact evidence is redacted", () => {
+  assert.match(playwrightConfig, /trace: "off"/);
+  assert.match(playwrightConfig, /screenshot: "off"/);
+  assert.match(playwrightConfig, /video: "off"/);
+  assert.match(workflow, /browser-session\.json:\/stage\/staging\/browser-session\.json:ro/);
+  assert.doesNotMatch(workflow, /config:\/stage:ro/);
+  assert.match(workflow, /chown "\$\{browser_uid\}:\$\{browser_gid\}" "\$\{stage_root\}\/config\/staging\/browser-session\.json"/);
+  assert.match(workflow, /chmod 0400 "\$\{stage_root\}\/config\/staging\/browser-session\.json"/);
+  assert.match(prepareStage, /browser_session\.chmod\(0o600\)/);
+  assert.match(prepareStage, /private_secrets\.chmod\(0o600\)/);
+  const browserSessionBlock = prepareStage.slice(
+    prepareStage.indexOf("browser_session ="),
+    prepareStage.indexOf("private_secrets ="),
+  );
+  assert.doesNotMatch(browserSessionBlock, /admin_access_token/);
+  assert.match(workflow, /sanitize_evidence\.py/);
+  assert.match(workflow, /private-artifact-secrets\.json/);
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "astv353-privacy-"));
+  try {
+    const evidence = path.join(root, "evidence");
+    fs.mkdirSync(evidence);
+    const secrets = path.join(root, "secrets.json");
+    fs.writeFileSync(secrets, JSON.stringify({
+      admin: ["synthetic-admin", "synthetic-admin-password"],
+      reader: ["synthetic-reader", "synthetic-reader-password"],
+      admin_access_token: "synthetic-token",
+    }));
+    fs.writeFileSync(path.join(evidence, "diagnostic.txt"), "user=synthetic-admin token=synthetic-token useful-detail");
+    fs.writeFileSync(path.join(evidence, "binary.bin"), Buffer.from("prefix synthetic-reader-password suffix"));
+    const command = process.env.ASTV353_PYTHON || (process.platform === "win32" ? "py" : "python3");
+    const result = spawnSync(command, [sanitizer, secrets, evidence], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(fs.readFileSync(path.join(evidence, "diagnostic.txt"), "utf8"), "user=[REDACTED] token=[REDACTED] useful-detail");
+    assert.equal(fs.readFileSync(path.join(evidence, "binary.bin"), "utf8"), "prefix [REDACTED] suffix");
+    const privacy = JSON.parse(fs.readFileSync(path.join(evidence, "artifact-privacy.json"), "utf8"));
+    assert.equal(privacy.status, "passed");
+    assert.deepEqual(privacy.redacted_files, ["binary.bin", "diagnostic.txt"]);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
   }
 });

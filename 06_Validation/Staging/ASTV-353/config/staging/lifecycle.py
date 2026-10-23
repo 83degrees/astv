@@ -12,7 +12,7 @@ from prepare_stage import command, service
 
 CATALOGUE = Path("/config/astv/astv_intent_catalogue.yaml")
 DRAFT = Path("/config/astv/astv_intent_catalogue.draft.yaml")
-SESSION = Path("/config/staging/browser-session.json")
+SESSION = Path("/config/staging/private-artifact-secrets.json")
 
 
 async def run() -> None:

@@ -6,7 +6,7 @@
 **Status:** v1.1.0 implementation candidate in integration v0.4.0; not merged,
 deployed, advertised or runtime-active. The installed `starburst` provider
 remains interface v1.0.0 through accepted HACS Beta
-`v0.3.0-beta.da8e078`; stable integration release `v0.3.0` is published but not
+`v0.3.0-beta.da8e078`; stable integration release `v0.5.0` is published but not
 installed on `starburst`
 **Provider:** ASTV  
 **Authoritative location:** 03_Contracts/ASTV_INTENT_CATALOGUE_ADMINISTRATION_INTERFACE.md

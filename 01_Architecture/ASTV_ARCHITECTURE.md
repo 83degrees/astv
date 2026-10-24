@@ -38,7 +38,7 @@ The design in this section was accepted under ASTV-331, implemented and cut
 over under ASTV-333, and extended with the accepted administration lifecycle
 under ASTV-334, ASTV-335 and ASTV-358. It is current approved and implemented
 architecture. The accepted HACS Beta `v0.4.0-beta.eedcc7a` is installed on
-`starburst`; stable integration release `v0.3.0` is published but not installed
+`starburst`; stable integration release `v0.5.0` is published but not installed
 there.
 
 The governed diagram represents the end-to-end runtime flow and logical ASTV
